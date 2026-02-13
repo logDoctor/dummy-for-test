@@ -2,7 +2,7 @@ import time
 import random
 import json
 import string
-from datetime import datetime
+from datetime import datetime, timezone
 
 LOG_FILE_PATH = "diet_web_app.log"
 
@@ -21,7 +21,7 @@ endpoints = [
 
 def generate_log(endpoint):
     log_entry = {
-        "TimeGenerated": datetime.utcnow().isoformat() + "Z",
+        "TimeGenerated": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "LogLevel": endpoint["level"],
         "HttpMethod": endpoint["method"],
         "RequestUri": endpoint["path"],
@@ -57,10 +57,11 @@ if __name__ == "__main__":
                     f.flush()
                     
                     if burst_count == 1:
-                        print(f"[{log_data['LogLevel']}] {log_data['RequestUri']} (Size: {len(str(log_data))} bytes)")
+                        print(f"[{log_data['TimeGenerated']}] [{log_data['LogLevel']}] {log_data['RequestUri']} (Size: {len(str(log_data))} bytes)")
                     
                 if burst_count > 1:
-                    print(f"🔥 [RETRY STORM] {endpoint['path']} 장애로 {burst_count}개의 로그가 발생했습니다!")
+                    current_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                    print(f"[{current_time}] 🔥 [RETRY STORM] {endpoint['path']} 장애로 {burst_count}개의 로그가 발생했습니다!")
                 
                 # 📉 다이어트 3: 로그 생성 주기를 평균 1초(0.5초 ~ 1.5초)로 확 늦춤
                 time.sleep(random.uniform(0.5, 1.5))
