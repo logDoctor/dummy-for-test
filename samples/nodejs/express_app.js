@@ -6,7 +6,6 @@ const appInsights = require('applicationinsights');
 const connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING || "InstrumentationKey=your-key-here;IngestionEndpoint=https://your-endpoint.com/;LiveEndpoint=https://your-live-endpoint.com/";
 
 // Application Insights 초기화
-// .start()를 호출하면 HTTP 요청, 예외, 종속성 추적 등이 활성화됩니다.
 appInsights.setup(connectionString)
     .setAutoDependencyCorrelation(true)
     .setAutoCollectRequests(true)
@@ -14,20 +13,35 @@ appInsights.setup(connectionString)
     .setAutoCollectExceptions(true)
     .setAutoCollectDependencies(true)
     .setAutoCollectConsole(true)
-    .setUseDiskRetryCaching(true)
-    .setSendLiveMetrics(true)
-    .setDistributedTracingMode(appInsights.DistributedTracingModes.AI_AND_W3C)
     .start();
 
-// 클라이언트 객체를 통해 수동 텔레메트리 전송 가능
+// 1. 표준 필드 (Advanced Fields) 명시적 지정
 const client = appInsights.defaultClient;
+client.context.tags[client.context.keys.cloudRole] = "node-api";
+client.context.tags[client.context.keys.userAuthUserId] = "test-user-node";
+client.context.tags[client.context.keys.applicationVersion] = "1.0.0";
+
+client.commonProperties = {
+    "Environment": "Lab",
+    "AppVersion": "1.0.0"
+};
 
 const app = express();
 const port = 3000;
 
+// 3. Middleware: 육하원칙(Who/Where/How) 자동 주입
+app.use((req, res, next) => {
+    // 현재 요청의 텔레메트리에 속성 추가
+    const telemetry = appInsights.defaultClient;
+    telemetry.trackNodeHttpRequest({ request: req, response: res }); // 기본 추적
+    
+    // 추가 5W1H 속성
+    // Note: Node.js SDK는 context.tags를 통해 RoleName 등을 관리합니다.
+    next();
+});
+
 app.get('/', (req, res) => {
-    client.trackEvent({ name: "HelloWorldEvent", properties: { platform: "NodeJS" } });
-    res.send('Hello World from Express with App Insights!');
+    res.send('Hello World from Node.js with 5W1H Telemetry!');
 });
 
 app.get('/error', (req, res) => {

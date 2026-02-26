@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"time"
 
@@ -19,23 +18,34 @@ func main() {
 
 	// Application Insights 클라이언트 설정
 	telemetryConfig := appinsights.NewTelemetryConfiguration(connectionString)
-	// 가속 설정을 통해 데이터를 더 빠르게 보낼 수도 있습니다.
-	telemetryConfig.MaxBatchSize = 10
-	telemetryConfig.MaxBatchInterval = 2 * time.Second
-	
 	client := appinsights.NewTelemetryClientFromConfig(telemetryConfig)
+
+	// 1. 표준 필드 및 공통 속성 주입
+	client.Context().Tags["ai.cloud.role"] = "go-api"
+	client.Context().Tags["ai.user.authUserId"] = "test-user-go"
+	client.Context().Tags["ai.application.ver"] = "1.0.0"
+
+	client.Context().CommonProperties["Environment"] = "Lab"
+	client.Context().CommonProperties["AppVersion"] = "1.0.0"
 
 	r := gin.Default()
 
-	// Gin 미들웨어로 요청 추적 작성 예시
+	// Gin 미들웨어로 육하원칙(Who/Where/How/Why) 자동 주입
 	r.Use(func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
-		
-		// 요청 종료 후 App Insights에 기록
+
 		duration := time.Since(start)
 		request := appinsights.NewRequestTelemetry(c.Request.Method, c.Request.URL.Path, duration, fmt.Sprintf("%d", c.Writer.Status()))
 		request.Timestamp = start
+
+		// Who
+		request.Properties["Who"] = c.ClientIP()
+		// Where
+		request.Properties["Where"] = "go-api"
+		// How
+		request.Properties["How"] = c.Request.Method
+
 		client.Track(request)
 	})
 

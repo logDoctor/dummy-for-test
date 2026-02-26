@@ -1,0 +1,12 @@
+{
+  "role": {
+    "name": "java-api"
+  },
+  "customDimensions": {
+    "Environment": "Lab",
+    "AppVersion": "1.0.0",
+    "Where": "java-api",
+    "How": "JavaAgent-Autocollect",
+    "Who": "test-user-java"
+  }
+}
