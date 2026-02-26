@@ -2,17 +2,6 @@
 
 이 저장소는 다양한 프로그래밍 언어와 프레임워크에서 Azure Application Insights SDK를 사용하는 샘플 코드를 제공합니다.
 
-## 공통 설정 (Connection String)
-모든 샘플은 Azure Portal에서 발급받은 **Connection String**이 필요합니다. 환경 변수로 설정하는 것이 가장 권장됩니다.
-
-```bash
-# Windows (PowerShell)
-$env:APPLICATIONINSIGHTS_CONNECTION_STRING="your-connection-string"
-
-# Linux/macOS
-export APPLICATIONINSIGHTS_CONNECTION_STRING="your-connection-string"
-```
-
 ---
 
 ## 1. Python (FastAPI)
@@ -79,7 +68,6 @@ sudo apt install python3 python3-pip python3-venv -y
 python3 -m venv venv
 source venv/bin/activate
 pip install fastapi uvicorn azure-monitor-opentelemetry
-export APPLICATIONINSIGHTS_CONNECTION_STRING="your-connection-string"
 python fastapi_app.py
 ```
 
@@ -89,7 +77,6 @@ python fastapi_app.py
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 npm install express applicationinsights
-export APPLICATIONINSIGHTS_CONNECTION_STRING="your-connection-string"
 node express_app.js
 ```
 
@@ -101,7 +88,6 @@ dotnet new web -o AppInsightsSample
 cp path/to/Program.cs AppInsightsSample/
 cd AppInsightsSample
 dotnet add package Microsoft.ApplicationInsights.AspNetCore
-export APPLICATIONINSIGHTS_CONNECTION_STRING="your-connection-string"
 dotnet run
 ```
 
@@ -110,7 +96,6 @@ dotnet run
 sudo apt install -y openjdk-17-jdk
 # applicationinsights-agent 다운로드
 wget https://github.com/microsoft/ApplicationInsights-Java/releases/download/3.4.10/applicationinsights-agent-3.4.10.jar
-export APPLICATIONINSIGHTS_CONNECTION_STRING="your-connection-string"
 java -javaagent:applicationinsights-agent-3.4.10.jar -jar your-app.jar
 ```
 
@@ -120,7 +105,6 @@ sudo apt install -y golang-go
 go mod init sample-app
 go get github.com/microsoft/ApplicationInsights-Go/appinsights
 go get github.com/gin-gonic/gin
-export APPLICATIONINSIGHTS_CONNECTION_STRING="your-connection-string"
 go run go_app.go
 ```
 
@@ -157,7 +141,6 @@ After=network.target
 User=azureuser
 WorkingDirectory=/home/azureuser/app
 ExecStart=/home/azureuser/app/venv/bin/uvicorn fastapi_app:app --host 0.0.0.0 --port 80
-Environment="APPLICATIONINSIGHTS_CONNECTION_STRING=your-connection-string"
 Restart=always
 
 [Install]
