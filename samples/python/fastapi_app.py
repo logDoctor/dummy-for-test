@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 import uvicorn
 import os
+import logging
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace
 
