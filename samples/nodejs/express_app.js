@@ -12,8 +12,11 @@ appInsights.setup(connectionString)
     .setAutoCollectPerformance(true, true)
     .setAutoCollectExceptions(true)
     .setAutoCollectDependencies(true)
-// v3 SDK: 수동 텔레메트리 전송을 위해서는 TelemetryClient 인스턴스를 직접 생성하여 사용하는 것이 안전합니다.
-const client = new appInsights.TelemetryClient(connectionString);
+    .setAutoCollectConsole(true);
+appInsights.start(); // start() takes effect
+
+// v3 SDK: start() 후에 defaultClient를 가져옵니다.
+const client = appInsights.defaultClient;
 
 // Node.js 3.x 에서는 공통 속성을 이렇게 설정합니다.
 client.context.tags[client.context.keys.cloudRole] = "node-api";
