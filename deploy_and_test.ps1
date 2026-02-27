@@ -65,7 +65,7 @@ az vm create `
     --resource-group $RGName `
     --name $VMName `
     --image Ubuntu2204 `
-    --size Standard_B1s `
+    --size Standard_B2s `
     --admin-username azureuser `
     --generate-ssh-keys `
     --public-ip-sku Standard `

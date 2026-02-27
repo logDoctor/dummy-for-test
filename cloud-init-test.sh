@@ -14,13 +14,13 @@ cd /home/azureuser/app
 git clone https://github.com/logDoctor/dummy-for-test.git .
 cd samples/python
 
-# Setup Python environment
-python3 -m venv venv
-source venv/bin/activate
-pip install fastapi uvicorn azure-monitor-opentelemetry
+# Setup Python environment using uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="\C:\Users\UserK/.local/bin:\"
 
-# Run application in the background
-nohup uvicorn fastapi_app:app --host 0.0.0.0 --port 80 > app.log 2>&1 &
+# Run application in the background using uv
+nohup uv run --with-requirements requirements.txt uvicorn fastapi_app:app --host 0.0.0.0 --port 80 > app.log 2>&1 &
+
 
 # Wait for application to be ready
 sleep 10

@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.client.RestTemplate;
 
 @SpringBootApplication
 public class DemoApplication {
@@ -47,6 +48,21 @@ class HelloController {
         // 수집합니다.
         logger.info("Event_UserCheckout: item=book, category=fiction");
         return "Custom event logged!";
+    }
+
+    @GetMapping("/dependency")
+    public String dependency() {
+        // RestTemplate을 이용한 외부 HTTP 호출.
+        // Java Agent가 자동으로 이 호출을 'Dependency' 텔레메트리로 캡처합니다.
+        RestTemplate restTemplate = new RestTemplate();
+        try {
+            String result = restTemplate.getForObject("https://httpbin.org/get", String.class);
+            logger.info("External dependency called successfully.");
+            return "Dependency simulated! " + result.substring(0, Math.min(result.length(), 20)) + "...";
+        } catch (Exception e) {
+            logger.error("Dependency call failed", e);
+            return "Dependency failed";
+        }
     }
 }
 
