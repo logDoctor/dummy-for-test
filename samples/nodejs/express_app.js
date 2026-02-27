@@ -12,19 +12,14 @@ appInsights.setup(connectionString)
     .setAutoCollectPerformance(true, true)
     .setAutoCollectExceptions(true)
     .setAutoCollectDependencies(true)
-    .setAutoCollectConsole(true)
-    .start();
+    .setAutoCollectConsole(true);
+appInsights.start(); // start() takes effect
 
-// 1. 표준 필드 (Advanced Fields) 명시적 지정
-// Node 3.x에서는 defaultClient 설정 방식이 달라졌습니다.
+// v3 SDK: appInsights.defaultClient is used to send manual traces.
 const client = appInsights.defaultClient;
 
-// Node.js 3.x (OpenTelemetry 기반) 에서는 공통 속성을 이렇게 설정합니다.
-client.commonProperties = {
-    "Environment": "Lab",
-    "AppVersion": "1.0.0",
-    "cloud_RoleName": "node-api"
-};
+// Node.js 3.x 에서는 공통 속성을 이렇게 설정합니다.
+client.context.tags[client.context.keys.cloudRole] = "node-api";
 
 const app = express();
 const port = 3000;
