@@ -5,9 +5,8 @@ const appInsights = require('applicationinsights');
 // 환경 변수 APPLICATIONINSIGHTS_CONNECTION_STRING 또는 아래 직접 입력
 const connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING || "InstrumentationKey=your-key-here;IngestionEndpoint=https://your-endpoint.com/;LiveEndpoint=https://your-live-endpoint.com/";
 
-// Application Insights 초기화 (Node.js SDK)
-// 2.x 버전에서는 환경 변수 APPLICATIONINSIGHTS_CONNECTION_STRING 이 존재하면 setup() 파라미터가 없어도 자동으로 읽습니다.
-appInsights.setup()
+// Application Insights 초기화 (Node.js SDK 2.x)
+appInsights.setup(connectionString)
     .setAutoCollectRequests(true)
     .setAutoCollectPerformance(true, true)
     .setAutoCollectExceptions(true)
