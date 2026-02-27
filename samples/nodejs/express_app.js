@@ -12,11 +12,8 @@ appInsights.setup(connectionString)
     .setAutoCollectPerformance(true, true)
     .setAutoCollectExceptions(true)
     .setAutoCollectDependencies(true)
-    .setAutoCollectConsole(true);
-appInsights.start(); // start() takes effect
-
-// v3 SDK: appInsights.defaultClient is used to send manual traces.
-const client = appInsights.defaultClient;
+// v3 SDK: 수동 텔레메트리 전송을 위해서는 TelemetryClient 인스턴스를 직접 생성하여 사용하는 것이 안전합니다.
+const client = new appInsights.TelemetryClient(connectionString);
 
 // Node.js 3.x 에서는 공통 속성을 이렇게 설정합니다.
 client.context.tags[client.context.keys.cloudRole] = "node-api";
@@ -27,8 +24,7 @@ const port = 3000;
 // 3. Middleware: 육하원칙(Who/Where/How) 자동 주입
 app.use((req, res, next) => {
     // 현재 요청의 텔레메트리에 속성 추가
-    const telemetry = appInsights.defaultClient;
-    telemetry.trackNodeHttpRequest({ request: req, response: res }); // 기본 추적
+    client.trackNodeHttpRequest({ request: req, response: res }); // 기본 추적
     
     // 추가 5W1H 속성
     // Note: Node.js SDK는 context.tags를 통해 RoleName 등을 관리합니다.
