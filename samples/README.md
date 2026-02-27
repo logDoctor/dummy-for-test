@@ -61,14 +61,17 @@
 
 각 언어별 런타임 설치 및 실행 방법입니다.
 
-### 1. Python (FastAPI)
+### 🚀 설정 및 실행 (uv 기반)
 ```bash
-sudo apt update
-sudo apt install python3 python3-pip python3-venv -y
-python3 -m venv venv
-source venv/bin/activate
-pip install fastapi uvicorn azure-monitor-opentelemetry
-python fastapi_app.py
+# uv 설치 (이미 설치되어 있다면 생략)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+
+# Python 샘플 디렉토리 이동
+cd samples/python
+
+# uv를 사용하여 의존성 설치 및 앱 실행 (속도 최적화)
+uv run --with-requirements requirements.txt uvicorn fastapi_app:app --host 0.0.0.0 --port 8000
 ```
 
 ### 2. Node.js (Express)
@@ -134,13 +137,13 @@ pip install fastapi uvicorn azure-monitor-opentelemetry
 # 4. 환경 변수 및 서비스 등록 (Systemd)
 cat <<EOF | sudo tee /etc/systemd/system/fastapi_app.service
 [Unit]
-Description=FastAPI App Insights Sample
+Description=Python FastAPI App Insights Sample
 After=network.target
 
 [Service]
 User=azureuser
-WorkingDirectory=/home/azureuser/app
-ExecStart=/home/azureuser/app/venv/bin/uvicorn fastapi_app:app --host 0.0.0.0 --port 80
+WorkingDirectory=/home/azureuser/app/samples/python
+ExecStart=/home/azureuser/.local/bin/uv run --with-requirements requirements.txt uvicorn fastapi_app:app --host 0.0.0.0 --port 80
 Restart=always
 
 [Install]
