@@ -7,6 +7,35 @@ import org.springframework.web.bind.annotation.RestController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.stereotype.Component;
+import org.slf4j.MDC;
+import jakarta.servlet.Filter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
+import java.io.IOException;
+
+@Component
+class TelemetryFilter implements Filter {
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+        // Application Insights Java 3.x Agent는 SLF4J의 MDC(Mapped Diagnostic Context)
+        // 속성을
+        // 자동으로 추출하여 원격 분석(Telemetry)의 커스텀 차원(Custom Dimensions)으로 기록합니다.
+        MDC.put("Env", "Lab");
+        MDC.put("AppVersion", "1.0.0");
+        MDC.put("Who", "UserK");
+        MDC.put("WhereInfo", "Java-SprintBoot-Agent");
+
+        try {
+            chain.doFilter(request, response);
+        } finally {
+            MDC.clear();
+        }
+    }
+}
 
 @SpringBootApplication
 public class DemoApplication {
