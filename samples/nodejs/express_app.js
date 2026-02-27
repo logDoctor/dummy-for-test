@@ -5,7 +5,7 @@ const appInsights = require('applicationinsights');
 // 환경 변수 APPLICATIONINSIGHTS_CONNECTION_STRING 또는 아래 직접 입력
 const connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING || "InstrumentationKey=your-key-here;IngestionEndpoint=https://your-endpoint.com/;LiveEndpoint=https://your-live-endpoint.com/";
 
-// Application Insights 초기화
+// Application Insights 초기화 (Node.js SDK 3.x)
 appInsights.setup(connectionString)
     .setAutoDependencyCorrelation(true)
     .setAutoCollectRequests(true)
@@ -16,14 +16,14 @@ appInsights.setup(connectionString)
     .start();
 
 // 1. 표준 필드 (Advanced Fields) 명시적 지정
+// Node 3.x에서는 defaultClient 설정 방식이 달라졌습니다.
 const client = appInsights.defaultClient;
-client.context.tags[client.context.keys.cloudRole] = "node-api";
-client.context.tags[client.context.keys.userAuthUserId] = "test-user-node";
-client.context.tags[client.context.keys.applicationVersion] = "1.0.0";
 
+// Node.js 3.x (OpenTelemetry 기반) 에서는 공통 속성을 이렇게 설정합니다.
 client.commonProperties = {
     "Environment": "Lab",
-    "AppVersion": "1.0.0"
+    "AppVersion": "1.0.0",
+    "cloud_RoleName": "node-api"
 };
 
 const app = express();
@@ -56,19 +56,21 @@ app.get('/logs', (req, res) => {
 });
 
 app.get('/custom-event', (req, res) => {
+    // trackEvent는 name 속성이 필요
     client.trackEvent({ name: "UserCheckout_Node", properties: { item: "book", category: "fiction" } });
     res.send("Custom event tracked!");
 });
 
 app.get('/dependency', (req, res) => {
+    // trackDependency
     client.trackDependency({
         target: "http://external-api.com",
         name: "GET /users",
         data: "SELECT * FROM Users",
         duration: 120,
-        resultCode: 200,
+        resultCode: "200",
         success: true,
-        dependencyTypeName: "HTTP"
+        dependencyTypeName: "HTTP" // 최신 SDK v3 에서는 dependencyTypeName이 HTTP/SQL 등으로 쓰임
     });
     res.send("Dependency tracked!");
 });
