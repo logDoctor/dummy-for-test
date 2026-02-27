@@ -1,8 +1,14 @@
 // OpenTelemetry 초기화가 Express 등 다른 모듈을 'require'하기 전에 반드시 가장 먼저 실행되어야 합니다!
 const { useAzureMonitor } = require("@azure/monitor-opentelemetry");
 
-// 환경 변수 APPLICATIONINSIGHTS_CONNECTION_STRING 이 존재하면 자동으로 매핑됩니다.
-useAzureMonitor();
+const connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING || "InstrumentationKey=your-key-here;IngestionEndpoint=https://your-endpoint.com/;LiveEndpoint=https://your-live-endpoint.com/";
+
+// 환경 변수 APPLICATIONINSIGHTS_CONNECTION_STRING 을 명시적으로 전달합니다.
+useAzureMonitor({
+  azureMonitorExporterOptions: {
+    connectionString: connectionString
+  }
+});
 
 // OpenTelemetry 표준 API 추출
 const { trace, metrics } = require("@opentelemetry/api");
