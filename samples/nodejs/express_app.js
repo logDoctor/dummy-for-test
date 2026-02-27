@@ -1,71 +1,78 @@
+// OpenTelemetry 초기화가 Express 등 다른 모듈을 'require'하기 전에 반드시 가장 먼저 실행되어야 합니다!
+const { useAzureMonitor } = require("@azure/monitor-opentelemetry");
+
+// 환경 변수 APPLICATIONINSIGHTS_CONNECTION_STRING 이 존재하면 자동으로 매핑됩니다.
+useAzureMonitor();
+
+// OpenTelemetry 표준 API 추출
+const { trace, metrics } = require("@opentelemetry/api");
+
 const express = require('express');
-const appInsights = require('applicationinsights');
-
-// Azure Monitor 연결 문자열 설정
-// 환경 변수 APPLICATIONINSIGHTS_CONNECTION_STRING 또는 아래 직접 입력
-const connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING || "InstrumentationKey=your-key-here;IngestionEndpoint=https://your-endpoint.com/;LiveEndpoint=https://your-live-endpoint.com/";
-
-// Application Insights 초기화 (Node.js SDK 2.x)
-appInsights.setup(connectionString)
-    .setAutoCollectRequests(true)
-    .setAutoCollectPerformance(true, true)
-    .setAutoCollectExceptions(true)
-    .setAutoCollectDependencies(true)
-    .setAutoCollectConsole(true);
-appInsights.start(); // start() takes effect
-
-// v3 SDK: start() 후에 defaultClient를 가져옵니다.
-const client = appInsights.defaultClient;
-
-// Node.js 3.x 에서는 공통 속성을 이렇게 설정합니다.
-client.context.tags[client.context.keys.cloudRole] = "node-api";
 
 const app = express();
 const port = 3000;
 
-// 3. Middleware: 육하원칙(Who/Where/How) 자동 주입
+// 표준 수동 계측을 위한 Tracer 및 Meter 생성
+const tracer = trace.getTracer("node-api-tracer");
+const meter = metrics.getMeter("node-api-meter");
+
+let customEventCounter = meter.createCounter("custom_event_counter");
+
+// 3. Middleware: HTTP 요청 등은 OpenTelemetry 프레임워크가 자동으로 계측합니다.
 app.use((req, res, next) => {
-    // 현재 요청의 텔레메트리에 속성 추가
-    client.trackNodeHttpRequest({ request: req, response: res }); // 기본 추적
-    
-    // 추가 5W1H 속성
-    // Note: Node.js SDK는 context.tags를 통해 RoleName 등을 관리합니다.
+    // 추가 작업이 필요할 경우 여기에 작성합니다.
     next();
 });
 
 app.get('/', (req, res) => {
-    res.send('Hello World from Node.js with 5W1H Telemetry!');
+    res.send('Hello World from Node.js with Azure Monitor OpenTelemetry Distro!');
 });
 
 app.get('/error', (req, res) => {
-    throw new Error("Node.js test exception for App Insights");
+    throw new Error("Node.js test exception for OpenTelemetry");
 });
 
 app.get('/logs', (req, res) => {
-    client.trackTrace({ message: "This is an INFO trace from Node.js", severity: appInsights.Contracts.SeverityLevel.Information });
-    client.trackTrace({ message: "This is a WARNING trace from Node.js", severity: appInsights.Contracts.SeverityLevel.Warning });
-    client.trackTrace({ message: "This is an ERROR trace from Node.js", severity: appInsights.Contracts.SeverityLevel.Error });
-    res.send('Diverse logs generated!');
+    // OpenTelemetry에서는 로그(Trace)를 현재 Span의 Event로 기록할 수 있습니다.
+    const span = trace.getActiveSpan();
+    if (span) {
+        span.addEvent("This is an INFO trace from Node.js (OpenTelemetry)", { "log.severity": "INFO" });
+        span.addEvent("This is a WARNING trace from Node.js (OpenTelemetry)", { "log.severity": "WARN" });
+        span.addEvent("This is an ERROR trace from Node.js (OpenTelemetry)", { "log.severity": "ERROR" });
+    } else {
+        tracer.startActiveSpan('manual-log-span', (manualSpan) => {
+            manualSpan.addEvent("This is an INFO trace from Node.js (OpenTelemetry)");
+            manualSpan.end();
+        });
+    }
+    res.send('Diverse logs generated via OpenTelemetry!');
 });
 
 app.get('/custom-event', (req, res) => {
-    // trackEvent는 name 속성이 필요
-    client.trackEvent({ name: "UserCheckout_Node", properties: { item: "book", category: "fiction" } });
-    res.send("Custom event tracked!");
+    // OpenTelemetry에서는 커스텀 이벤트를 Span Event나 Metric을 통해 관리합니다.
+    const span = trace.getActiveSpan();
+    if (span) {
+        span.addEvent("UserCheckout_Node_OTel", { "item": "book", "category": "fiction" });
+    }
+    
+    // 비즈니스 지표(Metric) 누적
+    customEventCounter.add(1, { "item": "book", "category": "fiction" });
+    res.send("Custom event tracked via OpenTelemetry Event & Metric!");
 });
 
 app.get('/dependency', (req, res) => {
-    // trackDependency
-    client.trackDependency({
-        target: "http://external-api.com",
-        name: "GET /users",
-        data: "SELECT * FROM Users",
-        duration: 120,
-        resultCode: "200",
-        success: true,
-        dependencyTypeName: "HTTP" // 최신 SDK v3 에서는 dependencyTypeName이 HTTP/SQL 등으로 쓰임
+    // 외부로 실제 HTTP 요청을 보내면 OpenTelemetry가 자동으로 Dependency 텔레메트리를 생성하지만,
+    // 수동으로 종속성 이력을 남기고 싶다면 명시적으로 Span을 열어 속성을 부여합니다.
+    tracer.startActiveSpan('GET /users (Manual Dependency)', (span) => {
+        span.setAttribute("http.url", "http://external-api.com");
+        span.setAttribute("http.method", "GET");
+        span.setAttribute("http.status_code", 200);
+        
+        setTimeout(() => {
+            span.end();
+            res.send("Dependency tracked manually via OpenTelemetry Span!");
+        }, 120);
     });
-    res.send("Dependency tracked!");
 });
 
 app.listen(port, () => {
