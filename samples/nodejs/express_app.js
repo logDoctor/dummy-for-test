@@ -82,6 +82,14 @@ app.get('/dependency', (req, res) => {
     });
 });
 
+// 전역 에러 핸들러 (Global Error Handler)
+// Express에서 발생한 에러를 잡아내어 콘솔을 더럽히지 않고 깔끔한 500 응답을 내립니다.
+// OpenTelemetry는 이 과정에서 에러를 자동으로 감지하여 App Insights에 Exception으로 기록합니다.
+app.use((err, req, res, next) => {
+    console.error(`[Error Handled Gracefully] ${err.message}`);
+    res.status(500).send("An intentional error occurred and was logged to Azure Monitor.");
+});
+
 app.listen(port, () => {
     console.log(`Node.js app listening at http://localhost:${port}`);
 });
