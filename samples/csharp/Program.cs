@@ -7,14 +7,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Azure Monitor OpenTelemetry Distro 설정
 // 환경 변수 APPLICATIONINSIGHTS_CONNECTION_STRING 이 있으면 자동으로 사용됩니다.
-{
-    // 연결 문자열 명시적 제공 (환경 변수가 없을 경우 대비)
-    var connectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
-    if (!string.IsNullOrEmpty(connectionString))
-    {
-        options.ConnectionString = connectionString.Trim('\'', '"');
-    }
-});
 
 var app = builder.Build();
 
