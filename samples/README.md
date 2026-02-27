@@ -5,54 +5,66 @@
 ---
 
 ## 1. Python (FastAPI)
+
 - **위치**: `samples/python/fastapi_app.py`
 - **사용 SDK**: `azure-monitor-opentelemetry` (최신 권장 SDK)
 - **실행 방법**:
+
   ```bash
   pip install fastapi uvicorn azure-monitor-opentelemetry
   python fastapi_app.py
   ```
 
 ## 2. Node.js (Express)
+
 - **위치**: `samples/nodejs/express_app.js`
 - **사용 SDK**: `applicationinsights`
 - **실행 방법**:
+
   ```bash
   npm install express applicationinsights
   node express_app.js
   ```
 
 ## 3. C# (ASP.NET Core)
+
 - **위치**: `samples/csharp/Program.cs`
 - **사용 SDK**: `Microsoft.ApplicationInsights.AspNetCore`
 - **실행 방법**:
+
   ```bash
   dotnet add package Microsoft.ApplicationInsights.AspNetCore
   dotnet run
   ```
 
 ## 4. Java (Spring Boot)
+
 - **위치**: `samples/java/DemoApplication.java`
 - **사용 SDK**: `applicationinsights-spring-boot-starter` 또는 `Java Agent` (권장)
 - **실행 방법**:
+
   ```bash
   java -javaagent:applicationinsights-agent-3.x.x.jar -jar your-app.jar
   ```
 
 ## 5. Go (Gin)
+
 - **위치**: `samples/go/go_app.go`
 - **사용 SDK**: `github.com/microsoft/ApplicationInsights-Go`
 - **실행 방법**:
+
   ```bash
   go get github.com/microsoft/ApplicationInsights-Go/appinsights
   go run go_app.go
   ```
 
 ## 6. JavaScript (Web/Frontend)
+
 - **위치**: `samples/javascript_web/index.html`
 - **사용 SDK**: `applicationinsights-web` (Snippet 방식)
 - **사용 방법**:
-  - `index.html` 내의 `connectionString`을 실제 값으로 수정 후 브라우저에서 열기
+
+- `index.html` 내의 `connectionString`을 실제 값으로 수정 후 브라우저에서 열기
 
 
 ---
@@ -61,7 +73,7 @@
 
 각 언어별 런타임 설치 및 실행 방법입니다.
 
-### 🚀 설정 및 실행 (uv 기반)
+### 1. Python (FastAPI - uv 기반)
 ```bash
 # uv 설치 (이미 설치되어 있다면 생략)
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -74,7 +86,7 @@ cd samples/python
 uv run --with-requirements requirements.txt uvicorn fastapi_app:app --host 0.0.0.0 --port 8000
 ```
 
-### 2. Node.js (Express)
+### 2. Node.js Runtime 설치
 ```bash
 # NodeSource를 통한 최신 Node.js 설치
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -83,7 +95,7 @@ npm install express applicationinsights
 node express_app.js
 ```
 
-### 3. C# (ASP.NET Core)
+### 3. .NET Core Runtime 설치
 ```bash
 # .NET 8 SDK 설치
 sudo apt install -y dotnet-sdk-8.0
@@ -94,7 +106,7 @@ dotnet add package Microsoft.ApplicationInsights.AspNetCore
 dotnet run
 ```
 
-### 4. Java (Spring Boot)
+### 4. Java Runtime 설치
 ```bash
 sudo apt install -y openjdk-17-jdk
 # applicationinsights-agent 다운로드
@@ -102,7 +114,7 @@ wget https://github.com/microsoft/ApplicationInsights-Java/releases/download/3.4
 java -javaagent:applicationinsights-agent-3.4.10.jar -jar your-app.jar
 ```
 
-### 5. Go (Gin)
+### 5. Go Runtime 설치
 ```bash
 sudo apt install -y golang-go
 go mod init sample-app
@@ -282,6 +294,7 @@ export APPLICATIONINSIGHTS_CONNECTION_STRING=$CONN_STR
 ---
 
 ## 주요 기능
+
 - **자동 계측 (Auto-instrumentation)**: HTTP 요청, 응답, 의존성 호출 등을 자동으로 기록합니다.
 - **예외 추적**: `/error` 엔드포인트를 통해 에러가 App Insights에 어떻게 수집되는지 확인할 수 있습니다.
 - **수동 텔레메트리**: `trackEvent` 등을 통해 커스텀 이벤트를 남기는 예시가 포함되어 있습니다.
