@@ -18,6 +18,23 @@ app.MapGet("/error", () => {
     throw new Exception(".NET Normalized test exception");
 });
 
+app.MapGet("/logs", (ILogger<Program> logger) => {
+    logger.LogInformation("This is an INFO log from .NET");
+    logger.LogWarning("This is a WARNING log from .NET");
+    logger.LogError("This is an ERROR log from .NET");
+    return "Diverse logs generated!";
+});
+
+app.MapGet("/custom-event", (Microsoft.ApplicationInsights.TelemetryClient telemetryClient) => {
+    telemetryClient.TrackEvent("UserCheckout_DotNet", new Dictionary<string, string> { { "item", "book" } });
+    return "Custom event tracked!";
+});
+
+app.MapGet("/dependency", (Microsoft.ApplicationInsights.TelemetryClient telemetryClient) => {
+    telemetryClient.TrackDependency("SQL", "MyDatabase", "SELECT * FROM Users", DateTimeOffset.Now, TimeSpan.FromMilliseconds(50), true);
+    return "Dependency tracked!";
+});
+
 app.Run();
 
 // 공통 속성 및 육하원칙(5W1H)을 주입하는 Initializer 클래스

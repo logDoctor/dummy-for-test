@@ -92,5 +92,31 @@ async def trigger_error():
     raise Exception("This is a test exception for Application Insights")
 
 
+@app.get("/logs")
+async def generate_logs():
+    logger.info("This is an INFO log from Python")
+    logger.warning("This is a WARNING log from Python")
+    logger.error("This is an ERROR log from Python")
+    return {"message": "Diverse logs generated!"}
+
+
+@app.get("/custom-event")
+async def generate_event():
+    with tracer.start_as_current_span("CustomEvent: UserCheckout"):
+        logger.info("User checkout process started")
+    return {"message": "Custom event span created!"}
+
+
+@app.get("/dependency")
+async def generate_dependency():
+    import time
+
+    with tracer.start_as_current_span("Simulated_SQL_Query") as span:
+        span.set_attribute("db.system", "mssql")
+        span.set_attribute("db.statement", "SELECT * FROM Users")
+        time.sleep(0.05)
+    return {"message": "Dependency simulated"}
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

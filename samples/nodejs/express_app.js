@@ -48,6 +48,31 @@ app.get('/error', (req, res) => {
     throw new Error("Node.js test exception for App Insights");
 });
 
+app.get('/logs', (req, res) => {
+    client.trackTrace({ message: "This is an INFO trace from Node.js", severity: appInsights.Contracts.SeverityLevel.Information });
+    client.trackTrace({ message: "This is a WARNING trace from Node.js", severity: appInsights.Contracts.SeverityLevel.Warning });
+    client.trackTrace({ message: "This is an ERROR trace from Node.js", severity: appInsights.Contracts.SeverityLevel.Error });
+    res.send('Diverse logs generated!');
+});
+
+app.get('/custom-event', (req, res) => {
+    client.trackEvent({ name: "UserCheckout_Node", properties: { item: "book", category: "fiction" } });
+    res.send("Custom event tracked!");
+});
+
+app.get('/dependency', (req, res) => {
+    client.trackDependency({
+        target: "http://external-api.com",
+        name: "GET /users",
+        data: "SELECT * FROM Users",
+        duration: 120,
+        resultCode: 200,
+        success: true,
+        dependencyTypeName: "HTTP"
+    });
+    res.send("Dependency tracked!");
+});
+
 app.listen(port, () => {
     console.log(`Node.js app listening at http://localhost:${port}`);
 });

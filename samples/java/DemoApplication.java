@@ -32,6 +32,22 @@ class HelloController {
         logger.error("Intentional error triggered for monitoring");
         throw new RuntimeException("Java Agent test exception");
     }
+
+    @GetMapping("/logs")
+    public String logs() {
+        logger.info("This is an INFO log from Java");
+        logger.warn("This is a WARNING log from Java");
+        logger.error("This is an ERROR log from Java");
+        return "Diverse logs generated!";
+    }
+
+    @GetMapping("/custom-event")
+    public String customEvent() {
+        // 커스텀 이벤트 역시 로그로 남길 수 있습니다. Application Insights Agent는 로거 설정을 통해 자동으로 이들을
+        // 수집합니다.
+        logger.info("Event_UserCheckout: item=book, category=fiction");
+        return "Custom event logged!";
+    }
 }
 
 /*

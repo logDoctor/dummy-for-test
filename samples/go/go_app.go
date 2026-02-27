@@ -64,6 +64,29 @@ func main() {
 		})
 	})
 
+	r.GET("/logs", func(c *gin.Context) {
+		client.TrackTrace("This is an INFO log from Go", appinsights.Information)
+		client.TrackTrace("This is a WARNING log from Go", appinsights.Warning)
+		client.TrackTrace("This is an ERROR log from Go", appinsights.Error)
+		c.JSON(200, gin.H{"message": "Diverse logs generated!"})
+	})
+
+	r.GET("/custom-event", func(c *gin.Context) {
+		event := appinsights.NewEventTelemetry("UserCheckout_Go")
+		event.Properties["item"] = "book"
+		event.Metrics["price"] = 15.99
+		client.Track(event)
+		c.JSON(200, gin.H{"message": "Custom event tracked!"})
+	})
+
+	r.GET("/dependency", func(c *gin.Context) {
+		dependency := appinsights.NewRemoteDependencyTelemetry("SQL", "tcp", "MyDatabase", "SELECT * FROM Users")
+		dependency.Duration = 50 * time.Millisecond
+		dependency.Success = true
+		client.Track(dependency)
+		c.JSON(200, gin.H{"message": "Dependency tracked!"})
+	})
+
 	r.Run(":8080")
 }
 
