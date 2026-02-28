@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 # ==========================================
 # 1. Configuration & OpenTelemetry Setup
@@ -61,6 +62,9 @@ logger.addFilter(GlobalDimensionsFilter())
 # 3. FastAPI Application & Middleware
 # ==========================================
 app = FastAPI(title="Log Doctor Python Sample API")
+
+# Enable automatic instrumentation for FastAPI to generate AppRequests
+FastAPIInstrumentor.instrument_app(app)
 
 
 @app.middleware("http")
