@@ -1,75 +1,110 @@
-// OpenTelemetry 초기화가 Express 등 다른 모듈을 'require'하기 전에 반드시 가장 먼저 실행되어야 합니다!
+/**
+ * ==========================================
+ * 1. Configuration & OpenTelemetry Setup
+ * ==========================================
+ * IMPORTANT: OpenTelemetry initialization MUST happen before requiring 
+ * any other modules like Express or HTTP!
+ */
 const { useAzureMonitor } = require("@azure/monitor-opentelemetry");
 
 let connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING || "InstrumentationKey=your-key-here;IngestionEndpoint=https://your-endpoint.com/;LiveEndpoint=https://your-live-endpoint.com/";
-connectionString = connectionString.replace(/^['"]|['"]$/g, ''); // 앞뒤 따옴표 제거
+connectionString = connectionString.replace(/^['"]|['"]$/g, '');
 
-// 환경 변수 APPLICATIONINSIGHTS_CONNECTION_STRING 을 명시적으로 전달합니다.
+// Initialize Azure Monitor OpenTelemetry Distro
 useAzureMonitor({
   azureMonitorExporterOptions: {
     connectionString: connectionString
   }
 });
 
-// OpenTelemetry 표준 API 추출
+/**
+ * ==========================================
+ * 2. Express Application & Telemetry Config
+ * ==========================================
+ */
 const { trace, metrics } = require("@opentelemetry/api");
-
 const express = require('express');
 
 const app = express();
 const port = 3000;
 
-// 표준 수동 계측을 위한 Tracer 및 Meter 생성
+// Standard explicit Manual Tracer and Meter
 const tracer = trace.getTracer("node-api-tracer");
 const meter = metrics.getMeter("node-api-meter");
+const customEventCounter = meter.createCounter("custom_event_counter");
 
-let customEventCounter = meter.createCounter("custom_event_counter");
-
-// 3. Middleware: HTTP 요청 등은 OpenTelemetry 프레임워크가 자동으로 계측합니다.
+/**
+ * 3. Middleware: 5W1H Context Injection
+ * This middleware intercepts requests and adds contextual dimensions 
+ * to the automatically generated OpenTelemetry HTTP Request Span.
+ */
 app.use((req, res, next) => {
-    // 추가 작업이 필요할 경우 여기에 작성합니다.
+    const span = trace.getActiveSpan();
+    
+    if (span) {
+        // Inject 5W1H standard fields into the current HTTP Request Span
+        span.setAttribute("Who", req.ip || "unknown");
+        span.setAttribute("Where", `node-api${req.path}`);
+        span.setAttribute("How", req.method);
+        span.setAttribute("Environment", "Lab");
+        span.setAttribute("AppVersion", "1.0.0");
+        
+        // Standard user properties for Application Insights mapping
+        span.setAttribute("enduser.id", "test-user-node");
+    }
+    
     next();
 });
 
+/**
+ * ==========================================
+ * 4. Business Logic (Routes)
+ * ==========================================
+ */
 app.get('/', (req, res) => {
     res.send('Hello World from Node.js with Azure Monitor OpenTelemetry Distro!');
 });
 
 app.get('/error', (req, res) => {
+    // Exceptions thrown here are automatically tracked by the OpenTelemetry Distro
     throw new Error("Node.js test exception for OpenTelemetry");
 });
 
 app.get('/logs', (req, res) => {
-    // OpenTelemetry에서는 로그(Trace)를 현재 Span의 Event로 기록할 수 있습니다.
+    // In OpenTelemetry, manual logs are recorded as Events on the active Span
     const span = trace.getActiveSpan();
+    
     if (span) {
-        span.addEvent("This is an INFO trace from Node.js (OpenTelemetry)", { "log.severity": "INFO" });
-        span.addEvent("This is a WARNING trace from Node.js (OpenTelemetry)", { "log.severity": "WARN" });
-        span.addEvent("This is an ERROR trace from Node.js (OpenTelemetry)", { "log.severity": "ERROR" });
+        span.addEvent("This is an INFO trace from Node.js", { "log.severity": "INFO" });
+        span.addEvent("This is a WARNING trace from Node.js", { "log.severity": "WARN" });
+        span.addEvent("This is an ERROR trace from Node.js", { "log.severity": "ERROR" });
     } else {
         tracer.startActiveSpan('manual-log-span', (manualSpan) => {
             manualSpan.addEvent("This is an INFO trace from Node.js (OpenTelemetry)");
             manualSpan.end();
         });
     }
+    
     res.send('Diverse logs generated via OpenTelemetry!');
 });
 
 app.get('/custom-event', (req, res) => {
-    // OpenTelemetry에서는 커스텀 이벤트를 Span Event나 Metric을 통해 관리합니다.
+    // Custom events can be tracked via Span Events or explicit Metrics
     const span = trace.getActiveSpan();
+    
     if (span) {
         span.addEvent("UserCheckout_Node_OTel", { "item": "book", "category": "fiction" });
     }
     
-    // 비즈니스 지표(Metric) 누적
+    // Accumulate a Business Metric
     customEventCounter.add(1, { "item": "book", "category": "fiction" });
+    
     res.send("Custom event tracked via OpenTelemetry Event & Metric!");
 });
 
 app.get('/dependency', (req, res) => {
-    // 외부로 실제 HTTP 요청을 보내면 OpenTelemetry가 자동으로 Dependency 텔레메트리를 생성하지만,
-    // 수동으로 종속성 이력을 남기고 싶다면 명시적으로 Span을 열어 속성을 부여합니다.
+    // External HTTP calls (fetch, axios) are automatically tracked.
+    // For manual dependency tracking, you can create a specific Span.
     tracer.startActiveSpan('GET /users (Manual Dependency)', (span) => {
         span.setAttribute("http.url", "http://external-api.com");
         span.setAttribute("http.method", "GET");
@@ -82,9 +117,13 @@ app.get('/dependency', (req, res) => {
     });
 });
 
-// 전역 에러 핸들러 (Global Error Handler)
-// Express에서 발생한 에러를 잡아내어 콘솔을 더럽히지 않고 깔끔한 500 응답을 내립니다.
-// OpenTelemetry는 이 과정에서 에러를 자동으로 감지하여 App Insights에 Exception으로 기록합니다.
+/**
+ * ==========================================
+ * 5. Global Error Handling
+ * ==========================================
+ */
+// Express catches the error, prevents app crash, and logs gracefully.
+// OpenTelemetry automatically captures the error stack and reports it as an Exception.
 app.use((err, req, res, next) => {
     console.error(`[Error Handled Gracefully] ${err.message}`);
     res.status(500).send("An intentional error occurred and was logged to Azure Monitor.");

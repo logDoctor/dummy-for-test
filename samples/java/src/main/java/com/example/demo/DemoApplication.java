@@ -4,39 +4,23 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 
-@Component
-class TelemetryFilter implements Filter {
-    @Override
-    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-            throws IOException, ServletException {
-        // Application Insights Java 3.x Agent는 SLF4J의 MDC(Mapped Diagnostic Context)
-        // 속성을
-        // 자동으로 추출하여 원격 분석(Telemetry)의 커스텀 차원(Custom Dimensions)으로 기록합니다.
-        MDC.put("Env", "Lab");
-        MDC.put("AppVersion", "1.0.0");
-        MDC.put("Who", "UserK");
-        MDC.put("WhereInfo", "Java-SprintBoot-Agent");
-
-        try {
-            chain.doFilter(request, response);
-        } finally {
-            MDC.clear();
-        }
-    }
-}
-
+// ==========================================
+// 1. Application Entry Point
+// ==========================================
 @SpringBootApplication
 public class DemoApplication {
     public static void main(String[] args) {
@@ -44,6 +28,44 @@ public class DemoApplication {
     }
 }
 
+// ==========================================
+// 2. Telemetry Filter (Middleware)
+// ==========================================
+/**
+ * Application Insights Java 3.x Agent automatically extracts SLF4J's MDC
+ * (Mapped Diagnostic Context) properties and records them as Custom Dimensions.
+ * This filter intercepts incoming HTTP requests and injects 5W1H standard
+ * fields.
+ */
+@Component
+class TelemetryFilter implements Filter {
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+
+        // Inject 5W1H and common fields into MDC
+        MDC.put("Env", "Lab");
+        MDC.put("AppVersion", "1.0.0");
+        MDC.put("Who", httpRequest.getRemoteAddr() != null ? httpRequest.getRemoteAddr() : "unknown");
+        MDC.put("How", httpRequest.getMethod());
+        MDC.put("Where", "java-api:" + httpRequest.getRequestURI());
+
+        try {
+            // Proceed with the Spring Boot application logic
+            chain.doFilter(request, response);
+        } finally {
+            // Always clear MDC after the request to prevent data leaking into reused
+            // threads
+            MDC.clear();
+        }
+    }
+}
+
+// ==========================================
+// 3. Business Logic (Controllers)
+// ==========================================
 @RestController
 class HelloController {
 
@@ -51,14 +73,16 @@ class HelloController {
 
     @GetMapping("/")
     public String hello() {
-        // Java Agent가 이 로그를 가로채어 5W1H 속성을 자동으로 붙여 전송합니다.
+        // The Java Agent intercepts this log and automatically attaches the MDC
+        // properties
         logger.info("Hello from Spring Boot with Advanced Standard Logs!");
         return "Hello World from Spring Boot (Advanced 5W1H OK)!";
     }
 
     @GetMapping("/error")
     public String error() {
-        // 예외 기록도 표준 방식으로 처리하면 Agent가 자동으로 'Exception' 텔레메트리로 캡처합니다.
+        // Handled or unhandled exceptions are automatically captured as 'Exception'
+        // telemetry
         logger.error("Intentional error triggered for monitoring");
         throw new RuntimeException("Java Agent test exception");
     }
@@ -73,16 +97,16 @@ class HelloController {
 
     @GetMapping("/custom-event")
     public String customEvent() {
-        // 커스텀 이벤트 역시 로그로 남길 수 있습니다. Application Insights Agent는 로거 설정을 통해 자동으로 이들을
-        // 수집합니다.
+        // Custom events can simply be logged following a specific pattern,
+        // or tracked directly if using the Application Insights SDK.
         logger.info("Event_UserCheckout: item=book, category=fiction");
         return "Custom event logged!";
     }
 
     @GetMapping("/dependency")
     public String dependency() {
-        // RestTemplate을 이용한 외부 HTTP 호출.
-        // Java Agent가 자동으로 이 호출을 'Dependency' 텔레메트리로 캡처합니다.
+        // External HTTP calls using RestTemplate, WebClient, etc., are
+        // automatically captured as 'Dependency' telemetry by the Java Agent.
         RestTemplate restTemplate = new RestTemplate();
         try {
             String result = restTemplate.getForObject("https://httpbin.org/get", String.class);
@@ -96,20 +120,16 @@ class HelloController {
 }
 
 /*
- * // [추천 방식: Java Agent]
- * // Java의 경우 코드 수정 없이 'applicationinsights-agent-3.x.x.jar'를 사용하여
- * // 실행 시점에 연결하는 방식이 가장 권장됩니다.
- * // 실행 명령어: java -javaagent:path/to/applicationinsights-agent-3.4.10.jar -jar
- * app.jar
+ * ==========================================
+ * Agent Installation Guide
+ * ==========================================
+ * // [Recommended Approach: Java Agent]
+ * // The most recommended approach for Java is to attach the
+ * // 'applicationinsights-agent-3.x.x.jar' at runtime without any code changes.
+ * // Execution command: java
+ * -javaagent:path/to/applicationinsights-agent-3.4.10.jar -jar app.jar
  * 
- * // [Maven 의존성 예시 (pom.xml)]
- * // <dependency>
- * // <groupId>com.microsoft.azure</groupId>
- * // <artifactId>applicationinsights-spring-boot-starter</artifactId>
- * // <version>2.6.4</version>
- * // </dependency>
- * 
- * // [설정 (application.properties)]
- * // azure.application-insights.instrumentation-key=YOUR_KEY_HERE
- * // 또는 환경 변수: APPLICATIONINSIGHTS_CONNECTION_STRING
+ * // [Configuration (application.properties)]
+ * // azure.application-insights.connection-string=YOUR_CONNECTION_STRING_HERE
+ * // Or via environment variable: APPLICATIONINSIGHTS_CONNECTION_STRING
  */
