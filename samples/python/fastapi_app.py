@@ -1,6 +1,8 @@
 import os
 import time
 import logging
+import random
+import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import uvicorn
@@ -150,6 +152,52 @@ async def generate_dependency():
         time.sleep(0.05)
 
     return {"message": "Dependency simulated"}
+
+
+@app.get("/secret-data")
+async def view_secret_data():
+    """
+    [핵심 예제] "누가 언제 어디서 어떻게 중요 데이터를 조회했는가"
+    비즈니스 감사(Audit) 이벤트를 Custom Properties 에 기록하는 엔드포인트입니다.
+    """
+    # 1. 랜덤 유저 ID 및 랜덤 문서 ID 생성
+    user_id = f"user-{random.randint(1000, 9999)}"
+    document_id = random.randint(1, 100)
+
+    # 2. 커스텀 블록(Span)으로 작업 전체를 묶어서 상세 속성(Custom Properties) 기록
+    with tracer.start_as_current_span("Audit_Action: 1급 기밀 문서 조회") as span:
+        # 블록에 영원히 지워지지 않는 낙인(스티커) 쾅쾅 찍기
+        span.set_attribute("Security.Actor", user_id)
+        span.set_attribute("Security.Action", "File_Download")
+        span.set_attribute(
+            "Security.Target", f"Chairman_Salary_Report_{document_id}.pdf"
+        )
+
+        # 파일 다운로드 로직 시뮬레이션 (0.1 ~ 0.5초 대기)
+        time.sleep(random.uniform(0.1, 0.5))
+
+        # 3. 중요 이벤트 텍스트 로그(AppTraces)에도 명시적으로 딕셔너리 기록
+        logger.info(
+            f"보안 감사: 사용자({user_id})가 기밀 문서({document_id}) 조회에 성공했습니다.",
+            extra={
+                "custom_dimensions": {
+                    "Audit_Action": "VIEW_DOCUMENT",
+                    "Target_Document_ID": document_id,
+                    "Actor_User_ID": user_id,
+                    "Is_Success": True,
+                    "Severity": "Critical",
+                }
+            },
+        )
+
+        # 작업 성공 결과 기록
+        span.set_attribute("Security.Result", "Success")
+
+    return {
+        "message": "비밀 문서 조회 성공! (LAW 창고에 이 로깅이 완벽하게 전송되었습니다)",
+        "user_id": user_id,
+        "document_id": document_id,
+    }
 
 
 # Optional: Custom Exception Handler to return clean JSON while still relying on OpenTelemetry's automatic exception tracing
