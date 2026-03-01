@@ -7,6 +7,7 @@ import uvicorn
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.sdk.trace import SpanProcessor
 
 # ==========================================
 # 1. Configuration & OpenTelemetry Setup
@@ -19,8 +20,22 @@ connection_string = os.getenv(
 # Set base Cloud Role Name for Application Insights
 os.environ["OTEL_SERVICE_NAME"] = "python-api"
 
+
+# 1. 쓸데없는 짐(Span)을 폐기하는 커스텀 필터 만들기
+class DropUnknownRouteProcessor(SpanProcessor):
+    def on_end(self, span: trace.Span) -> None:
+        # 응답 상태 코드가 404(Not Found)인 경우
+        if span.attributes and span.attributes.get("http.response.status_code") == 404:
+            # Azure로 택배를 보내지 않고 그 자리에서 Span을 파기(비활성화)합니다.
+            span._context = span.context._replace(trace_flags=trace.TraceFlags.DEFAULT)
+
+
 # Initialize Azure Monitor OpenTelemetry
 configure_azure_monitor(connection_string=connection_string)
+
+# 필터를 Azure 배송 라인에 찰칵! 하고 끼워넣기
+provider = trace.get_tracer_provider()
+provider.add_span_processor(DropUnknownRouteProcessor())
 
 # Acquire tracer for custom manual spanning
 tracer = trace.get_tracer(__name__)
