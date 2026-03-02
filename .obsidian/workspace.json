@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/modern_logging_practices.md",
+                "file": "docs/02-observability/opentelemetry_architecture.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "modern_logging_practices"
+              "title": "opentelemetry_architecture"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "docs/modern_logging_practices.md",
+                "file": "docs/02-observability/opentelemetry_architecture.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "modern_logging_practices 의 백링크"
+              "title": "opentelemetry_architecture 의 백링크"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "docs/modern_logging_practices.md",
+                "file": "docs/02-observability/opentelemetry_architecture.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "modern_logging_practices 의 나가는 링크"
+              "title": "opentelemetry_architecture 의 나가는 링크"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "docs/modern_logging_practices.md",
+                "file": "docs/02-observability/opentelemetry_architecture.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "modern_logging_practices 의 개요"
+              "title": "opentelemetry_architecture 의 개요"
             }
           }
         ]
@@ -185,12 +185,41 @@
   },
   "active": "785e81a5e0a5fb94",
   "lastOpenFiles": [
-    "deploy_az_vm.sh",
-    "docs/opentelemetry_three_pillars.md",
-    "docs/opentelemetry_architecture.md",
+    "docs/02-observability/normalization_strategy.md",
+    "docs/02-observability/log-trace-metric-why.md",
+    "docs/01-concepts/why_logs_matter.md",
+    "docs/01-concepts/modern_logging_practices.md",
+    "docs/01-concepts/log_standardization_rationale.md",
+    "docs/03-operations/walkthrough.md",
+    "docs/05-reference/kql_quick_start.md",
+    "docs/04-cost-retention/law_retention_and_export_strategy.md",
+    "docs/04-cost-retention/law_cost_optimization.md",
+    "docs/04-cost-retention/azure_monitoring_latency_and_storage_qa.md",
+    "docs/03-operations/infrastructure_guide.md",
+    "docs/02-observability/opentelemetry_python_examples.md",
+    "docs/02-observability/opentelemetry_extraction_summary.md",
+    "docs/02-observability/opentelemetry_architecture.md",
+    "docs/README.md",
+    "docs/law_cost_optimization.md",
+    "docs/05-reference",
+    "docs/04-cost-retention",
+    "docs/03-operations",
+    "docs/02-observability/opentelemetry_three_pillars.md",
+    "docs/02-observability",
+    "docs/01-concepts",
+    "docs/azure_monitoring_latency_and_storage_qa.md",
+    "docs/infrastructure_guide.md",
+    "docs/normalization_strategy.md",
     "docs/modern_logging_practices.md",
-    "docs/why_logs_matter.md",
-    "docs/opentelemetry_python_examples.md",
-    "docs/opentelemetry_extraction_summary.md"
+    "docs/log_standardization_rationale.md",
+    "docs/law_retention_and_export_strategy.md",
+    "docs/kql_quick_start.md",
+    "samples/python/__pycache__/telemetry.cpython-312.pyc",
+    "samples/python/__pycache__/routes.cpython-312.pyc",
+    "samples/python/__pycache__/middleware.cpython-312.pyc",
+    "samples/python/__pycache__/logger.cpython-312.pyc",
+    "samples/python/__pycache__/fastapi_app.cpython-312.pyc",
+    "docs/opentelemetry_architecture.md",
+    "docs/opentelemetry_three_pillars.md"
   ]
 }

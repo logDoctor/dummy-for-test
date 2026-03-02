@@ -42,22 +42,21 @@ echo "🚀 4. 가상머신(VM) 초기화 스크립트 (cloud-init) 생성"
 echo "================================================================="
 cat <<EOF > cloud-init.sh
 #!/bin/bash
-# 패키지 업데이트 및 필수 요소 설치 (Python, Git)
+# Update packages and install python/git
 apt-get update
 apt-get install -y python3-pip git
 
-# GitHub 리포지토리 클론
+# Clone repo
 cd /home/$VM_USER
 git clone https://github.com/logDoctor/dummy-for-test.git
 chown -R $VM_USER:$VM_USER dummy-for-test
 
-# 의존성 설치
+# Install dependencies
 cd /home/$VM_USER/dummy-for-test/samples/python
 pip3 install -r requirements.txt
 
-# 환경변수 주입 및 애플리케이션 백그라운드 실행
+# Run app in background
 export APPLICATIONINSIGHTS_CONNECTION_STRING="$CONN_STR"
-# 루트가 아닌 일반 사용자 권한으로 실행
 sudo -u $VM_USER bash -c "export APPLICATIONINSIGHTS_CONNECTION_STRING='$CONN_STR'; nohup python3 fastapi_app.py > /home/$VM_USER/app.log 2>&1 &"
 EOF
 echo "✅ cloud-init.sh 생성 완료"
@@ -70,11 +69,11 @@ az vm create \
   --resource-group "$RG_NAME" \
   --name "$VM_NAME" \
   --image Ubuntu2204 \
+  --size Standard_B1s \
   --admin-username "$VM_USER" \
   --generate-ssh-keys \
   --custom-data ./cloud-init.sh \
-  --public-ip-sku Standard \
-  -o none
+  --public-ip-sku Standard
 echo "✅ VM 생성 완료"
 
 echo "================================================================="
