@@ -4,6 +4,18 @@
 
 ---
 
+## 언어별 데이터 흐름(상세)
+
+각 언어별 “데이터가 어떻게 흘러가는지(OTel/Agent/SDK → Azure Monitor → LAW)”는 아래 README에 정리되어 있습니다.
+
+- Python: `samples/python/README.md`
+- Node.js: `samples/nodejs/README.md`
+- .NET: `samples/csharp/README.md`
+- Java: `samples/java/README.md`
+- Go: `samples/go/README.md`
+
+---
+
 ## 1. Python (FastAPI)
 
 - **위치**: `samples/python/fastapi_app.py`
@@ -11,36 +23,40 @@
 - **실행 방법**:
 
   ```bash
-  pip install fastapi uvicorn azure-monitor-opentelemetry
-  python fastapi_app.py
+  cd samples/python
+  pip install -r requirements.txt
+  uvicorn fastapi_app:app --host 0.0.0.0 --port 8000
   ```
 
 ## 2. Node.js (Express)
 
 - **위치**: `samples/nodejs/express_app.js`
-- **사용 SDK**: `applicationinsights`
+- **사용 SDK**: `@azure/monitor-opentelemetry` (Azure Monitor OTel Distro)
 - **실행 방법**:
 
   ```bash
-  npm install express applicationinsights
+  cd samples/nodejs
+  npm init -y
+  npm install express @azure/monitor-opentelemetry @opentelemetry/api
   node express_app.js
   ```
 
 ## 3. C# (ASP.NET Core)
 
 - **위치**: `samples/csharp/Program.cs`
-- **사용 SDK**: `Microsoft.ApplicationInsights.AspNetCore`
+- **사용 SDK**: `Azure.Monitor.OpenTelemetry.AspNetCore`
 - **실행 방법**:
 
   ```bash
-  dotnet add package Microsoft.ApplicationInsights.AspNetCore
+  cd samples/csharp
+  dotnet restore
   dotnet run
   ```
 
 ## 4. Java (Spring Boot)
 
-- **위치**: `samples/java/DemoApplication.java`
-- **사용 SDK**: `applicationinsights-spring-boot-starter` 또는 `Java Agent` (권장)
+- **위치**: `samples/java/src/main/java/com/example/demo/DemoApplication.java`
+- **사용 SDK**: `Application Insights Java Agent` (권장)
 - **실행 방법**:
 
   ```bash
@@ -54,17 +70,16 @@
 - **실행 방법**:
 
   ```bash
+  cd samples/go
+  go mod init sample-app
   go get github.com/microsoft/ApplicationInsights-Go/appinsights
+  go get github.com/gin-gonic/gin
   go run go_app.go
   ```
 
 ## 6. JavaScript (Web/Frontend)
 
-- **위치**: `samples/javascript_web/index.html`
-- **사용 SDK**: `applicationinsights-web` (Snippet 방식)
-- **사용 방법**:
-
-- `index.html` 내의 `connectionString`을 실제 값으로 수정 후 브라우저에서 열기
+- 현재 이 저장소에는 JavaScript(Web) 샘플 폴더가 없습니다. (TODO)
 
 
 ---
@@ -91,7 +106,7 @@ uv run --with-requirements requirements.txt uvicorn fastapi_app:app --host 0.0.0
 # NodeSource를 통한 최신 Node.js 설치
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
-npm install express applicationinsights
+npm install express @azure/monitor-opentelemetry @opentelemetry/api
 node express_app.js
 ```
 
@@ -102,7 +117,7 @@ sudo apt install -y dotnet-sdk-8.0
 dotnet new web -o AppInsightsSample
 cp path/to/Program.cs AppInsightsSample/
 cd AppInsightsSample
-dotnet add package Microsoft.ApplicationInsights.AspNetCore
+dotnet add package Azure.Monitor.OpenTelemetry.AspNetCore
 dotnet run
 ```
 
