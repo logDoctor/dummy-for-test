@@ -6,6 +6,8 @@
     "Environment": "Lab",
     "AppVersion": "1.0.0",
     "Where": "java-api",
+    "What": "unknown",
+    "Why": "unknown",
     "How": "JavaAgent-Autocollect",
     "Who": "test-user-java"
   }

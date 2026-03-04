@@ -58,12 +58,12 @@ am-AuditLogs_CL/
 
 Log Doctor처럼 외부 플랫폼이 고객 환경을 자동화할 때 필요한 권한:
 
-| 작업 | 필요 권한 | 범위(Scope) |
-|---|---|---|
-| 커스텀 테이블 생성 / 보존 기간 변경 | `Log Analytics Contributor` | LAW 리소스 단위 |
-| Data Export Rule 설정 | `Monitoring Contributor` | 리소스 그룹 단위 |
+| 작업                       | 필요 권한                         | 범위(Scope)  |
+| ------------------------ | ----------------------------- | ---------- |
+| 커스텀 테이블 생성 / 보존 기간 변경    | `Log Analytics Contributor`   | LAW 리소스 단위 |
+| Data Export Rule 설정      | `Monitoring Contributor`      | 리소스 그룹 단위  |
 | Blob Storage 생성 / 데이터 쓰기 | `Storage Account Contributor` | 스토리지 계정 단위 |
-| KQL 조회만 (읽기 전용) | `Log Analytics Reader` | LAW 리소스 단위 |
+| KQL 조회만 (읽기 전용)          | `Log Analytics Reader`        | LAW 리소스 단위 |
 
 > ⚠️ "구독 전체 기여자(Subscription Contributor)"는 절대 요구하지 않습니다.  
 > 최소 권한 원칙(Principle of Least Privilege)에 맞게 **LAW 리소스 단위로 스코프를 좁혀** 권한을 요청해야 기업 고객의 보안 심사를 통과할 수 있습니다.

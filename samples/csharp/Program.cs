@@ -8,20 +8,33 @@ using System.Diagnostics;
 // ==========================================
 var builder = WebApplication.CreateBuilder(args);
 
-// The Azure Monitor OpenTelemetry Distro automatically picks up the 
-// APPLICATIONINSIGHTS_CONNECTION_STRING environment variable.
-// It sets up traces, metrics, and logs automatically.
 builder.Services.AddOpenTelemetry().UseAzureMonitor();
 
 var app = builder.Build();
 
-// Standard explicit Manual Tracer (ActivitySource) for custom tracking
 var activitySource = new ActivitySource("DotNetOTelSample");
+
+// ==========================================
+// 5W1H Endpoint Mapping (표준화된 비즈니스 컨텍스트)
+// ==========================================
+var endpoint5W1H = new Dictionary<string, (string What, string Why)>
+{
+    { "/", ("guide", "documentation") },
+    { "/health", ("health-check", "periodic-monitoring") },
+    { "/logs", ("log-generation", "testing") },
+    { "/custom-event", ("business-event", "checkout-tracking") },
+    { "/dependency", ("dependency-call", "external-service-test") },
+    { "/error", ("error-test", "exception-tracking") },
+};
+
+(string What, string Why) Resolve5W1H(string path)
+{
+    return endpoint5W1H.TryGetValue(path, out var result) ? result : ("unknown", "unknown");
+}
 
 // ==========================================
 // 2. Global Error Handling Middleware
 // ==========================================
-// Catches exceptions gracefully and logs them before OpenTelemetry captures them.
 app.Use(async (context, next) =>
 {
     try
@@ -39,25 +52,30 @@ app.Use(async (context, next) =>
 });
 
 // ==========================================
-// 3. Middleware: 5W1H Context Injection
+// 3. Middleware: 5W1H Context Injection (통합 표준)
 // ==========================================
-// Intercepts requests and adds contextual dimensions to the automatically 
-// generated OpenTelemetry HTTP Request Activity (Span).
 app.Use(async (context, next) =>
 {
     var activity = Activity.Current;
 
     if (activity != null)
     {
-        // Inject 5W1H standard fields
+        var (what, why) = Resolve5W1H(context.Request.Path);
+
+        // Who
+        activity.AddTag("enduser.id", "test-user-dotnet");
         activity.AddTag("Who", context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
-        activity.AddTag("Where", $"dotnet-api{context.Request.Path}");
+        // Where
+        activity.AddTag("Where", $"dotnet-api:{context.Request.Path}");
+        // What (신규)
+        activity.AddTag("What", what);
+        // Why (신규)
+        activity.AddTag("Why", why);
+        // How
         activity.AddTag("How", context.Request.Method);
+        // 공통
         activity.AddTag("Environment", "Lab");
         activity.AddTag("AppVersion", "1.0.0");
-
-        // Standard user property for Application Insights mapping
-        activity.AddTag("enduser.id", "test-user-dotnet");
     }
 
     await next();
@@ -74,13 +92,11 @@ app.MapGet("/", () =>
 
 app.MapGet("/error", () => 
 {
-    // Exceptions are automatically captured by the framework
     throw new Exception(".NET OpenTelemetry test exception");
 });
 
 app.MapGet("/logs", (ILogger<Program> logger) => 
 {
-    // .NET ILogger logs are automatically collected by OpenTelemetry
     logger.LogInformation("This is an INFO log from .NET");
     logger.LogWarning("This is a WARNING log from .NET");
     logger.LogError("This is an ERROR log from .NET");
@@ -90,7 +106,6 @@ app.MapGet("/logs", (ILogger<Program> logger) =>
 
 app.MapGet("/custom-event", () => 
 {
-    // Custom events are recorded as Activity Events in OpenTelemetry
     using var activity = activitySource.StartActivity("UserCheckout_DotNet_OTel");
     
     activity?.AddEvent(new ActivityEvent("CheckoutStarted", tags: new ActivityTagsCollection 
@@ -104,7 +119,6 @@ app.MapGet("/custom-event", () =>
 
 app.MapGet("/dependency", async () => 
 {
-    // Outbound HTTP calls via HttpClient are automatically tracked as Dependencies
     using var httpClient = new HttpClient();
     
     try 

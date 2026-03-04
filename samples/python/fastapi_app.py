@@ -23,29 +23,54 @@ Quick start:
 - Guide endpoint: GET http://localhost:8000/api/
 """
 
+# ==========================================
+# 5W1H Endpoint Mapping (표준화된 비즈니스 컨텍스트)
+# ==========================================
+ENDPOINT_5W1H = {
+    "/api/": {"What": "guide", "Why": "documentation"},
+    "/api/health": {"What": "health-check", "Why": "periodic-monitoring"},
+    "/api/logs": {"What": "log-generation", "Why": "testing"},
+    "/api/custom-event": {"What": "business-event", "Why": "checkout-tracking"},
+    "/api/dependency": {"What": "dependency-call", "Why": "external-service-test"},
+    "/api/secret-data": {"What": "security-audit", "Why": "document-access"},
+    "/api/error": {"What": "error-test", "Why": "exception-tracking"},
+}
+
+
+def _resolve_5w1h(path: str) -> dict:
+    """경로에 해당하는 What/Why 값을 반환합니다."""
+    return ENDPOINT_5W1H.get(path, {"What": "unknown", "Why": "unknown"})
+
 
 class GlobalDimensionsFilter(logging.Filter):
+    """AppTraces에 5W1H + 공통 필드를 자동 주입하는 로깅 필터"""
+
     def filter(self, record):
         if not hasattr(record, "custom_dimensions"):
             record.custom_dimensions = {}
 
         record.user_Id = "test-user-python"
         record.application_Version = "1.0.0"
+
+        # 현재 Span에서 5W1H 컨텍스트 추출
+        span = trace.get_current_span()
+        span_attrs = {}
+        if span.is_recording():
+            ctx = span.attributes or {}
+            span_attrs = {k: ctx.get(k, "") for k in ["Who", "Where", "What", "Why", "How"]}
+
         record.custom_dimensions.update(
             {
                 "Environment": "Lab",
                 "AppVersion": "1.0.0",
-                "Where": os.environ.get("OTEL_SERVICE_NAME", "python-api"),
+                "Where": span_attrs.get("Where", os.environ.get("OTEL_SERVICE_NAME", "python-api")),
+                "Who": span_attrs.get("Who", "unknown"),
+                "What": span_attrs.get("What", "unknown"),
+                "Why": span_attrs.get("Why", "unknown"),
+                "How": span_attrs.get("How", "unknown"),
             }
         )
         return True
-
-
-def setup_logger(name="app"):
-    app_logger = logging.getLogger(name)
-    app_logger.setLevel(logging.INFO)
-    app_logger.addFilter(GlobalDimensionsFilter())
-    return app_logger
 
 
 class DropUnknownRouteProcessor(SpanProcessor):
@@ -67,21 +92,41 @@ def setup_telemetry(app: FastAPI):
     return trace.get_tracer(__name__)
 
 
+def setup_logger(name="app"):
+    app_logger = logging.getLogger(name)
+    app_logger.setLevel(logging.INFO)
+    app_logger.addFilter(GlobalDimensionsFilter())
+    return app_logger
+
+
 logger = setup_logger()
 app = FastAPI(title="Log Doctor Python Sample API (Single File)")
 tracer = setup_telemetry(app)
 router = APIRouter(prefix="/api", tags=["examples"])
 
 
+# ==========================================
+# Middleware: 5W1H Context Injection (통합 표준)
+# ==========================================
 @app.middleware("http")
 async def add_custom_telemetry_middleware(request: Request, call_next):
     span = trace.get_current_span()
     if span.is_recording():
+        context_5w1h = _resolve_5w1h(request.url.path)
+
+        # Who
         span.set_attribute("enduser.id", "test-user-python")
-        span.set_attribute("service.version", "1.0.0")
         span.set_attribute("Who", request.client.host if request.client else "unknown")
+        # Where
         span.set_attribute("Where", f"python-api:{request.url.path}")
+        # What (신규)
+        span.set_attribute("What", context_5w1h["What"])
+        # Why (신규)
+        span.set_attribute("Why", context_5w1h["Why"])
+        # How
         span.set_attribute("How", request.method)
+        # 공통
+        span.set_attribute("service.version", "1.0.0")
         span.set_attribute("Environment", "Lab")
         span.set_attribute("AppVersion", "1.0.0")
     return await call_next(request)

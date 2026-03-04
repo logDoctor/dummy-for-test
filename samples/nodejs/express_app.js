@@ -19,7 +19,7 @@ useAzureMonitor({
 
 /**
  * ==========================================
- * 2. Express Application & Telemetry Config
+ * 2. Express Application & 5W1H Standard
  * ==========================================
  */
 const { trace, metrics } = require("@opentelemetry/api");
@@ -28,29 +28,48 @@ const express = require('express');
 const app = express();
 const port = 3000;
 
-// Standard explicit Manual Tracer and Meter
 const tracer = trace.getTracer("node-api-tracer");
 const meter = metrics.getMeter("node-api-meter");
 const customEventCounter = meter.createCounter("custom_event_counter");
 
 /**
- * 3. Middleware: 5W1H Context Injection
- * This middleware intercepts requests and adds contextual dimensions 
- * to the automatically generated OpenTelemetry HTTP Request Span.
+ * 5W1H Endpoint Mapping (표준화된 비즈니스 컨텍스트)
+ */
+const ENDPOINT_5W1H = {
+    "/":              { What: "guide",           Why: "documentation" },
+    "/health":        { What: "health-check",    Why: "periodic-monitoring" },
+    "/logs":          { What: "log-generation",  Why: "testing" },
+    "/custom-event":  { What: "business-event",  Why: "checkout-tracking" },
+    "/dependency":    { What: "dependency-call",  Why: "external-service-test" },
+    "/error":         { What: "error-test",      Why: "exception-tracking" },
+};
+
+function resolve5W1H(path) {
+    return ENDPOINT_5W1H[path] || { What: "unknown", Why: "unknown" };
+}
+
+/**
+ * 3. Middleware: 5W1H Context Injection (통합 표준)
  */
 app.use((req, res, next) => {
     const span = trace.getActiveSpan();
+    const context5w1h = resolve5W1H(req.path);
     
     if (span) {
-        // Inject 5W1H standard fields into the current HTTP Request Span
+        // Who
+        span.setAttribute("enduser.id", "test-user-node");
         span.setAttribute("Who", req.ip || "unknown");
-        span.setAttribute("Where", `node-api${req.path}`);
+        // Where
+        span.setAttribute("Where", `node-api:${req.path}`);
+        // What (신규)
+        span.setAttribute("What", context5w1h.What);
+        // Why (신규)
+        span.setAttribute("Why", context5w1h.Why);
+        // How
         span.setAttribute("How", req.method);
+        // 공통
         span.setAttribute("Environment", "Lab");
         span.setAttribute("AppVersion", "1.0.0");
-        
-        // Standard user properties for Application Insights mapping
-        span.setAttribute("enduser.id", "test-user-node");
     }
     
     next();
@@ -66,12 +85,10 @@ app.get('/', (req, res) => {
 });
 
 app.get('/error', (req, res) => {
-    // Exceptions thrown here are automatically tracked by the OpenTelemetry Distro
     throw new Error("Node.js test exception for OpenTelemetry");
 });
 
 app.get('/logs', (req, res) => {
-    // In OpenTelemetry, manual logs are recorded as Events on the active Span
     const span = trace.getActiveSpan();
     
     if (span) {
@@ -89,22 +106,18 @@ app.get('/logs', (req, res) => {
 });
 
 app.get('/custom-event', (req, res) => {
-    // Custom events can be tracked via Span Events or explicit Metrics
     const span = trace.getActiveSpan();
     
     if (span) {
         span.addEvent("UserCheckout_Node_OTel", { "item": "book", "category": "fiction" });
     }
     
-    // Accumulate a Business Metric
     customEventCounter.add(1, { "item": "book", "category": "fiction" });
     
     res.send("Custom event tracked via OpenTelemetry Event & Metric!");
 });
 
 app.get('/dependency', (req, res) => {
-    // External HTTP calls (fetch, axios) are automatically tracked.
-    // For manual dependency tracking, you can create a specific Span.
     tracer.startActiveSpan('GET /users (Manual Dependency)', (span) => {
         span.setAttribute("http.url", "http://external-api.com");
         span.setAttribute("http.method", "GET");
@@ -122,8 +135,6 @@ app.get('/dependency', (req, res) => {
  * 5. Global Error Handling
  * ==========================================
  */
-// Express catches the error, prevents app crash, and logs gracefully.
-// OpenTelemetry automatically captures the error stack and reports it as an Exception.
 app.use((err, req, res, next) => {
     console.error(`[Error Handled Gracefully] ${err.message}`);
     res.status(500).send("An intentional error occurred and was logged to Azure Monitor.");

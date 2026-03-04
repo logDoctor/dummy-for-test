@@ -10,7 +10,31 @@ import (
 )
 
 // ==========================================
-// 1. Configuration & OpenTelemetry Setup
+// 5W1H Endpoint Mapping (표준화된 비즈니스 컨텍스트)
+// ==========================================
+type Context5W1H struct {
+	What string
+	Why  string
+}
+
+var endpoint5W1H = map[string]Context5W1H{
+	"/":             {What: "guide", Why: "documentation"},
+	"/health":       {What: "health-check", Why: "periodic-monitoring"},
+	"/logs":         {What: "log-generation", Why: "testing"},
+	"/custom-event": {What: "business-event", Why: "checkout-tracking"},
+	"/dependency":   {What: "dependency-call", Why: "external-service-test"},
+	"/error":        {What: "error-test", Why: "exception-tracking"},
+}
+
+func resolve5W1H(path string) Context5W1H {
+	if ctx, ok := endpoint5W1H[path]; ok {
+		return ctx
+	}
+	return Context5W1H{What: "unknown", Why: "unknown"}
+}
+
+// ==========================================
+// 1. Configuration & Telemetry Setup
 // ==========================================
 func initTelemetryClient() appinsights.TelemetryClient {
 	connectionString := os.Getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
@@ -21,7 +45,7 @@ func initTelemetryClient() appinsights.TelemetryClient {
 	telemetryConfig := appinsights.NewTelemetryConfiguration(connectionString)
 	client := appinsights.NewTelemetryClientFromConfig(telemetryConfig)
 
-	// Standard fields and common properties injection
+	// Standard fields
 	client.Context().Tags["ai.cloud.role"] = "go-api"
 	client.Context().Tags["ai.user.authUserId"] = "test-user-go"
 	client.Context().Tags["ai.application.ver"] = "1.0.0"
@@ -33,9 +57,8 @@ func initTelemetryClient() appinsights.TelemetryClient {
 }
 
 // ==========================================
-// 2. Middleware: 5W1H Context Injection
+// 2. Middleware: 5W1H Context Injection (통합 표준)
 // ==========================================
-// TelemetryMiddleware intercepts requests to measure duration and inject 5W1H context
 func TelemetryMiddleware(client appinsights.TelemetryClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -46,6 +69,9 @@ func TelemetryMiddleware(client appinsights.TelemetryClient) gin.HandlerFunc {
 		// Calculate duration
 		duration := time.Since(start)
 
+		// Resolve 5W1H context
+		ctx5w1h := resolve5W1H(c.Request.URL.Path)
+
 		// Create Request Telemetry
 		request := appinsights.NewRequestTelemetry(
 			c.Request.Method,
@@ -55,9 +81,15 @@ func TelemetryMiddleware(client appinsights.TelemetryClient) gin.HandlerFunc {
 		)
 		request.Timestamp = start
 
-		// Inject 5W1H Context
+		// Who
 		request.Properties["Who"] = c.ClientIP()
-		request.Properties["Where"] = "go-api"
+		// Where (수정: path 포함)
+		request.Properties["Where"] = "go-api:" + c.Request.URL.Path
+		// What (신규)
+		request.Properties["What"] = ctx5w1h.What
+		// Why (신규)
+		request.Properties["Why"] = ctx5w1h.Why
+		// How
 		request.Properties["How"] = c.Request.Method
 
 		// Send to Application Insights
@@ -87,13 +119,11 @@ func main() {
 	})
 
 	r.GET("/error", func(c *gin.Context) {
-		// Exception Telemetry Tracking
 		client.TrackException(fmt.Errorf("Go test error for App Insights"))
 		c.JSON(500, gin.H{"error": "Internal Server Error"})
 	})
 
 	r.GET("/logs", func(c *gin.Context) {
-		// Trace Logging
 		client.TrackTrace("This is an INFO log from Go", appinsights.Information)
 		client.TrackTrace("This is a WARNING log from Go", appinsights.Warning)
 		client.TrackTrace("This is an ERROR log from Go", appinsights.Error)
@@ -102,7 +132,6 @@ func main() {
 	})
 
 	r.GET("/custom-event", func(c *gin.Context) {
-		// Custom Event with properties and metrics
 		event := appinsights.NewEventTelemetry("UserCheckout_Go")
 		event.Properties["item"] = "book"
 		event.Metrics["price"] = 15.99
@@ -112,7 +141,6 @@ func main() {
 	})
 
 	r.GET("/dependency", func(c *gin.Context) {
-		// Manual Dependency Tracking (e.g., SQL Query)
 		dependency := appinsights.NewRemoteDependencyTelemetry("SQL", "tcp", "MyDatabase", "SELECT * FROM Users")
 		dependency.Duration = 50 * time.Millisecond
 		dependency.Success = true

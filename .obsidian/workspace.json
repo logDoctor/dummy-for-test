@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/02-observability/opentelemetry_architecture.md",
+                "file": "samples/README.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "opentelemetry_architecture"
+              "title": "README"
             }
           }
         ]
@@ -183,30 +183,36 @@
       "bases:새 베이스 생성하기": false
     }
   },
-  "active": "785e81a5e0a5fb94",
+  "active": "46cb301dee6ae1b2",
   "lastOpenFiles": [
-    "docs/02-observability/normalization_strategy.md",
-    "docs/02-observability/log-trace-metric-why.md",
-    "docs/01-concepts/why_logs_matter.md",
-    "docs/01-concepts/modern_logging_practices.md",
-    "docs/01-concepts/log_standardization_rationale.md",
-    "docs/03-operations/walkthrough.md",
+    "samples/java/target/classes/com/example/demo/Endpoint5W1H.class",
+    "samples/java/target/classes/com/example/demo/HelloController.class",
+    "samples/java/target/classes/com/example/demo/DemoApplication.class",
+    "samples/java/target/classes/com/example/demo/TelemetryFilter.class",
+    "samples/java/target/classes/com/example/demo",
+    "samples/java/target/classes/com/example",
+    "samples/java/target/classes/com",
+    "samples/java/target/test-classes",
+    "samples/java/target/classes",
+    "samples/java/target",
     "docs/05-reference/kql_quick_start.md",
+    "cloud-init.sh",
     "docs/04-cost-retention/law_retention_and_export_strategy.md",
     "docs/04-cost-retention/law_cost_optimization.md",
     "docs/04-cost-retention/azure_monitoring_latency_and_storage_qa.md",
+    "docs/03-operations/walkthrough.md",
     "docs/03-operations/infrastructure_guide.md",
+    "docs/02-observability/opentelemetry_three_pillars.md",
     "docs/02-observability/opentelemetry_python_examples.md",
-    "docs/02-observability/opentelemetry_extraction_summary.md",
+    "docs/02-observability/log-trace-metric-why.md",
+    "docs/02-observability/normalization_strategy.md",
     "docs/02-observability/opentelemetry_architecture.md",
+    "docs/01-concepts/why_logs_matter.md",
+    "docs/01-concepts/modern_logging_practices.md",
+    "docs/01-concepts/log_standardization_rationale.md",
+    "docs/02-observability/opentelemetry_extraction_summary.md",
     "docs/README.md",
     "docs/law_cost_optimization.md",
-    "docs/05-reference",
-    "docs/04-cost-retention",
-    "docs/03-operations",
-    "docs/02-observability/opentelemetry_three_pillars.md",
-    "docs/02-observability",
-    "docs/01-concepts",
     "docs/azure_monitoring_latency_and_storage_qa.md",
     "docs/infrastructure_guide.md",
     "docs/normalization_strategy.md",
@@ -214,12 +220,6 @@
     "docs/log_standardization_rationale.md",
     "docs/law_retention_and_export_strategy.md",
     "docs/kql_quick_start.md",
-    "samples/python/__pycache__/telemetry.cpython-312.pyc",
-    "samples/python/__pycache__/routes.cpython-312.pyc",
-    "samples/python/__pycache__/middleware.cpython-312.pyc",
-    "samples/python/__pycache__/logger.cpython-312.pyc",
-    "samples/python/__pycache__/fastapi_app.cpython-312.pyc",
-    "docs/opentelemetry_architecture.md",
-    "docs/opentelemetry_three_pillars.md"
+    "docs/opentelemetry_architecture.md"
   ]
 }
