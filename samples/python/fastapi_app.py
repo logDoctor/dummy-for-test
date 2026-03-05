@@ -1,7 +1,8 @@
+import asyncio
 import logging
 import os
 import random
-import time
+from datetime import datetime, timezone
 
 import uvicorn
 from azure.monitor.opentelemetry import configure_azure_monitor
@@ -23,27 +24,9 @@ Quick start:
 - Guide endpoint: GET http://localhost:8000/api/
 """
 
-# ==========================================
-# 5W1H Endpoint Mapping (표준화된 비즈니스 컨텍스트)
-# ==========================================
-ENDPOINT_5W1H = {
-    "/api/": {"What": "guide", "Why": "documentation"},
-    "/api/health": {"What": "health-check", "Why": "periodic-monitoring"},
-    "/api/logs": {"What": "log-generation", "Why": "testing"},
-    "/api/custom-event": {"What": "business-event", "Why": "checkout-tracking"},
-    "/api/dependency": {"What": "dependency-call", "Why": "external-service-test"},
-    "/api/secret-data": {"What": "security-audit", "Why": "document-access"},
-    "/api/error": {"What": "error-test", "Why": "exception-tracking"},
-}
-
-
-def _resolve_5w1h(path: str) -> dict:
-    """경로에 해당하는 What/Why 값을 반환합니다."""
-    return ENDPOINT_5W1H.get(path, {"What": "unknown", "Why": "unknown"})
-
 
 class GlobalDimensionsFilter(logging.Filter):
-    """AppTraces에 5W1H + 공통 필드를 자동 주입하는 로깅 필터"""
+    """AppTraces에 공통 필드를 자동 주입하는 로깅 필터"""
 
     def filter(self, record):
         if not hasattr(record, "custom_dimensions"):
@@ -52,38 +35,32 @@ class GlobalDimensionsFilter(logging.Filter):
         record.user_Id = "test-user-python"
         record.application_Version = "1.0.0"
 
-        # 현재 Span에서 5W1H 컨텍스트 추출
-        span = trace.get_current_span()
-        span_attrs = {}
-        if span.is_recording():
-            ctx = span.attributes or {}
-            span_attrs = {k: ctx.get(k, "") for k in ["Who", "Where", "What", "Why", "How"]}
-
         record.custom_dimensions.update(
             {
                 "Environment": "Lab",
                 "AppVersion": "1.0.0",
-                "Where": span_attrs.get("Where", os.environ.get("OTEL_SERVICE_NAME", "python-api")),
-                "Who": span_attrs.get("Who", "unknown"),
-                "What": span_attrs.get("What", "unknown"),
-                "Why": span_attrs.get("Why", "unknown"),
-                "How": span_attrs.get("How", "unknown"),
+                "Where": os.environ.get("OTEL_SERVICE_NAME", "python-api"),
             }
         )
         return True
 
 
 class DropUnknownRouteProcessor(SpanProcessor):
+    def on_start(self, span: trace.Span, parent_context=None) -> None:
+        pass
+
     def on_end(self, span: trace.Span) -> None:
         if span.attributes and span.attributes.get("http.response.status_code") == 404:
             span._context = span.context._replace(trace_flags=trace.TraceFlags.DEFAULT)
 
 
 def setup_telemetry(app: FastAPI):
-    connection_string = os.getenv(
-        "APPLICATIONINSIGHTS_CONNECTION_STRING",
-        "InstrumentationKey=your-key-here;IngestionEndpoint=https://your-endpoint.com/;LiveEndpoint=https://your-live-endpoint.com/",
-    )
+    connection_string = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    if not connection_string:
+        logging.getLogger("app").warning(
+            "APPLICATIONINSIGHTS_CONNECTION_STRING is not set. Telemetry will not be sent to Azure Monitor."
+        )
+        return trace.get_tracer(__name__)
     os.environ["OTEL_SERVICE_NAME"] = "python-api"
     configure_azure_monitor(connection_string=connection_string)
     provider = trace.get_tracer_provider()
@@ -106,29 +83,29 @@ router = APIRouter(prefix="/api", tags=["examples"])
 
 
 # ==========================================
-# Middleware: 5W1H Context Injection (통합 표준)
+# Middleware: Context Injection (통합 표준)
 # ==========================================
 @app.middleware("http")
 async def add_custom_telemetry_middleware(request: Request, call_next):
     span = trace.get_current_span()
     if span.is_recording():
-        context_5w1h = _resolve_5w1h(request.url.path)
+        service_name = os.environ.get("OTEL_SERVICE_NAME", "python-api")
+        user_id = request.headers.get("x-user-id", "test-user-python")
+        six_w_one_h = {
+            "6W1H.Who": user_id,
+            "6W1H.When": datetime.now(timezone.utc).isoformat(),
+            "6W1H.Where": f"{service_name}:{request.url.path}",
+            "6W1H.What": f"{request.method} {request.url.path}",
+            "6W1H.Why": "API request handling",
+            "6W1H.How": "FastAPI middleware + OpenTelemetry auto instrumentation",
+        }
 
-        # Who
-        span.set_attribute("enduser.id", "test-user-python")
-        span.set_attribute("Who", request.client.host if request.client else "unknown")
-        # Where
-        span.set_attribute("Where", f"python-api:{request.url.path}")
-        # What (신규)
-        span.set_attribute("What", context_5w1h["What"])
-        # Why (신규)
-        span.set_attribute("Why", context_5w1h["Why"])
-        # How
-        span.set_attribute("How", request.method)
-        # 공통
+        span.set_attribute("enduser.id", user_id)
         span.set_attribute("service.version", "1.0.0")
         span.set_attribute("Environment", "Lab")
         span.set_attribute("AppVersion", "1.0.0")
+        for key, value in six_w_one_h.items():
+            span.set_attribute(key, value)
     return await call_next(request)
 
 
@@ -148,6 +125,8 @@ async def start_here():
             "GET /api/dependency",
             "GET /api/secret-data",
             "GET /api/error",
+            "GET /api/normalized-log?scenario=good (정규화 표준 준수 예시)",
+            "GET /api/normalized-log?scenario=bad  (정규화 위반 예시)",
         ],
         "examples": {
             "health": "GET /api/health",
@@ -156,6 +135,8 @@ async def start_here():
             "dependency": "GET /api/dependency",
             "secret_data": "GET /api/secret-data",
             "error_test": "GET /api/error",
+            "normalized_log_good": "GET /api/normalized-log?scenario=good",
+            "normalized_log_bad": "GET /api/normalized-log?scenario=bad",
         },
         "note": "요청하신 대로 down 라우트는 없습니다.",
     }
@@ -187,7 +168,7 @@ async def generate_dependency():
     with tracer.start_as_current_span("Simulated_SQL_Query") as span:
         span.set_attribute("db.system", "mssql")
         span.set_attribute("db.statement", "SELECT * FROM Users")
-        time.sleep(0.05)
+        await asyncio.sleep(0.05)
     return {"message": "Dependency simulated"}
 
 
@@ -200,7 +181,7 @@ async def view_secret_data():
         span.set_attribute("Security.Actor", user_id)
         span.set_attribute("Security.Action", "File_Download")
         span.set_attribute("Security.Target", f"confidential_{document_id}.pdf")
-        time.sleep(random.uniform(0.1, 0.5))
+        await asyncio.sleep(random.uniform(0.1, 0.5))
         logger.info(
             f"Audit success: user({user_id}) viewed document({document_id})",
             extra={
@@ -225,6 +206,172 @@ async def view_secret_data():
 @router.get("/error", summary="예외 추적 테스트")
 async def trigger_error():
     raise Exception("This is a test exception for Application Insights")
+
+
+# ==========================================
+# /api/normalized-log — AppTraces 정규화 표준 시연
+# ==========================================
+@router.get("/normalized-log", summary="AppTraces 정규화 표준 시연 (Log Doctor 기준)")
+async def normalized_log_demo(scenario: str = "good"):
+    """
+    Log Doctor가 정의한 AppTraces 정규화 표준을 보여주는 템플릿 API.
+
+    scenario=good → 표준을 준수한 로그 (Log Doctor: criticality=medium/high, 정상 판정)
+    scenario=bad  → 표준 위반 로그    (Log Doctor: normalization_issue 처방 생성)
+
+    [정규화 표준 체크리스트]
+    ✅ 구조화된 메시지 (key=value 또는 명확한 문장)
+    ✅ CustomDimensions에 5W1H 포함 (Who, What, Why 필수 / Where, How는 미들웨어 자동)
+    ✅ SeverityLevel 명시 (logger.info / warning / error)
+    ✅ 민감정보 마스킹 (이메일, 비밀번호 등)
+    ✅ trace_id 연결 (OperationId — OpenTelemetry 자동 처리)
+    """
+    if scenario == "good":
+        return _log_good_examples()
+    elif scenario == "bad":
+        return _log_bad_examples()
+    else:
+        return {"error": "scenario는 'good' 또는 'bad'만 허용됩니다."}
+
+
+def _log_good_examples() -> dict:
+    """✅ 정규화 표준을 준수한 로그 예시"""
+
+    # --- 예시 1: INFO — 주문 처리 성공 ---
+    logger.info(
+        "주문 처리 완료: order_id=order-789, payment=success",
+        extra={
+            "custom_dimensions": {
+                # 비즈니스 컨텍스트
+                "user_id": "user-456",
+                "order_id": "order-789",
+                "payment_method": "card",
+                "amount": 29000,
+                "result": "SUCCESS",
+                "duration_ms": 320,
+            }
+        },
+    )
+
+    # --- 예시 2: WARNING — 느린 응답 감지 ---
+    logger.warning(
+        "외부 결제 API 응답 지연: target=payment-api.com, duration_ms=4800",
+        extra={
+            "custom_dimensions": {
+                "user_id": "user-456",
+                "target": "payment-api.com",
+                "duration_ms": 4800,
+                "threshold_ms": 3000,
+                "result": "SLOW",
+            }
+        },
+    )
+
+    # --- 예시 3: ERROR — 에러, 민감정보 마스킹 적용 ---
+    logger.error(
+        "사용자 인증 실패: user=jo***@company.com, reason=invalid_password",
+        extra={
+            "custom_dimensions": {
+                "user_id": "jo***@company.com",  # ✅ 마스킹 처리
+                "error_code": "AUTH_INVALID_PASSWORD",
+                "attempt_count": 3,
+                "result": "FAILED",
+                # ❌ 절대 넣으면 안 되는 것: "password": "abc123"  → 마스킹 필수
+            }
+        },
+    )
+
+    return {
+        "scenario": "good",
+        "description": "Log Doctor 정규화 표준을 준수한 로그 3건이 AppTraces에 기록되었습니다.",
+        "log_doctor_expected": {
+            "log_1": {
+                "severity": "INFO",
+                "criticality": "medium",
+                "masking": "✅",
+            },
+            "log_2": {
+                "severity": "WARNING",
+                "criticality": "medium",
+                "masking": "✅",
+            },
+            "log_3": {
+                "severity": "ERROR",
+                "criticality": "high",
+                "masking": "✅",
+            },
+        },
+        "check_in_law": (
+            "AppTraces "
+            "| where TimeGenerated > ago(5m) "
+            "| where OperationName contains 'normalized-log' "
+            "| project TimeGenerated, Message, SeverityLevel, CustomDimensions"
+        ),
+    }
+
+
+def _log_bad_examples() -> dict:
+    """❌ 정규화 표준 위반 로그 예시 — Log Doctor가 처방을 생성하는 패턴"""
+
+    # --- 위반 1: 구조화 없음 + SeverityLevel 불명확 ---
+    # (logger.info를 쓰긴 했지만 메시지에 아무 컨텍스트 없음)
+    logger.info("Processing...")
+
+    # --- 위반 2: 민감정보 노출 ---
+    logger.error(
+        "Login failed for john@company.com password=abc123",  # ❌ 평문 비밀번호
+        extra={
+            "custom_dimensions": {
+                # ❌ 5W1H 없음
+                # ❌ Who 없음
+                # ❌ What 없음
+                "raw_info": "john@company.com:abc123",  # ❌ 민감정보 노출
+            }
+        },
+    )
+
+    # --- 위반 3: Debug 로그를 프로덕션에 방치 ---
+    logger.debug(
+        "DB query params: SELECT * FROM users WHERE id=%s, params=('user-456',)"
+        # ❌ DEBUG 로그가 프로덕션에 있으면 Log Doctor가 'prevent' 처방 생성
+    )
+
+    # --- 위반 4: 반복 노이즈 로그 ---
+    for _ in range(5):
+        logger.info("Health check OK")  # ❌ 의미 없는 반복 로그
+
+    return {
+        "scenario": "bad",
+        "description": "정규화 표준 위반 로그 4종이 AppTraces에 기록되었습니다.",
+        "log_doctor_expected": {
+            "violation_1": {
+                "issue": "구조화 없음",
+                "prescription": "메시지에 컨텍스트 추가",
+                "severity": "medium",
+            },
+            "violation_2": {
+                "issue": "민감정보(이메일, 비밀번호) 평문 노출",
+                "prescription": "jo***@company.com 형태로 마스킹, password 필드 제거",
+                "severity": "high",
+            },
+            "violation_3": {
+                "issue": "DEBUG 로그가 프로덕션에 존재",
+                "prescription": "로그 레벨을 INFO 이상으로 설정 (logging.setLevel(INFO))",
+                "severity": "medium",
+            },
+            "violation_4": {
+                "issue": "동일 메시지 반복 (노이즈)",
+                "prescription": "Health check 로그는 주기적 집계 또는 필터링 권장",
+                "severity": "low",
+            },
+        },
+        "check_in_law": (
+            "AppTraces "
+            "| where TimeGenerated > ago(5m) "
+            "| where OperationName contains 'normalized-log' "
+            "| project TimeGenerated, Message, SeverityLevel, CustomDimensions"
+        ),
+    }
 
 
 app.include_router(router)

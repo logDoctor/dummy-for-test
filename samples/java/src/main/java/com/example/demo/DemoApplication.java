@@ -5,18 +5,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
-import jakarta.servlet.Filter;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.ServletRequest;
-import jakarta.servlet.ServletResponse;
-import jakarta.servlet.http.HttpServletRequest;
-import java.io.IOException;
 import java.util.Map;
 
 // ==========================================
@@ -30,64 +22,7 @@ public class DemoApplication {
 }
 
 // ==========================================
-// 5W1H Endpoint Mapping (표준화된 비즈니스 컨텍스트)
-// ==========================================
-class Endpoint5W1H {
-    static final Map<String, String[]> MAPPING = Map.of(
-        "/",              new String[]{"guide",           "documentation"},
-        "/health",        new String[]{"health-check",    "periodic-monitoring"},
-        "/logs",          new String[]{"log-generation",  "testing"},
-        "/custom-event",  new String[]{"business-event",  "checkout-tracking"},
-        "/dependency",    new String[]{"dependency-call",  "external-service-test"},
-        "/error",         new String[]{"error-test",      "exception-tracking"}
-    );
-
-    static String[] resolve(String path) {
-        return MAPPING.getOrDefault(path, new String[]{"unknown", "unknown"});
-    }
-}
-
-// ==========================================
-// 2. Telemetry Filter (Middleware): 5W1H Context Injection (통합 표준)
-// ==========================================
-/**
- * Application Insights Java 3.x Agent automatically extracts SLF4J's MDC
- * (Mapped Diagnostic Context) properties and records them as Custom Dimensions.
- * This filter intercepts incoming HTTP requests and injects 5W1H standard fields.
- */
-@Component
-class TelemetryFilter implements Filter {
-    @Override
-    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-            throws IOException, ServletException {
-
-        HttpServletRequest httpRequest = (HttpServletRequest) request;
-        String[] context5w1h = Endpoint5W1H.resolve(httpRequest.getRequestURI());
-
-        // Who
-        MDC.put("Who", httpRequest.getRemoteAddr() != null ? httpRequest.getRemoteAddr() : "unknown");
-        // Where (통일: {서비스명}:{경로})
-        MDC.put("Where", "java-api:" + httpRequest.getRequestURI());
-        // What (신규)
-        MDC.put("What", context5w1h[0]);
-        // Why (신규)
-        MDC.put("Why", context5w1h[1]);
-        // How
-        MDC.put("How", httpRequest.getMethod());
-        // 공통 (Env → Environment 수정)
-        MDC.put("Environment", "Lab");
-        MDC.put("AppVersion", "1.0.0");
-
-        try {
-            chain.doFilter(request, response);
-        } finally {
-            MDC.clear();
-        }
-    }
-}
-
-// ==========================================
-// 3. Business Logic (Controllers)
+// 2. Business Logic (Controllers)
 // ==========================================
 @RestController
 class HelloController {
@@ -130,6 +65,95 @@ class HelloController {
         } catch (Exception e) {
             logger.error("Dependency call failed", e);
             return "Dependency failed";
+        }
+    }
+
+    @GetMapping("/secret-data")
+    public Map<String, Object> secretData() {
+        String userId = "user-" + (int) (Math.random() * 9000 + 1000);
+        int documentId = (int) (Math.random() * 100) + 1;
+
+        MDC.put("Audit_Action", "VIEW_DOCUMENT");
+        MDC.put("Target_Document_ID", String.valueOf(documentId));
+        MDC.put("Actor_User_ID", userId);
+        MDC.put("Is_Success", "true");
+        MDC.put("Severity", "Critical");
+
+        MDC.put("Security.Actor", userId);
+        MDC.put("Security.Action", "File_Download");
+        MDC.put("Security.Target", "confidential_" + documentId + ".pdf");
+        MDC.put("Security.Result", "Success");
+
+        logger.info("Audit success: user({}) viewed document({})", userId, documentId);
+
+        // Remove from MDC after logging
+        MDC.remove("Audit_Action");
+        MDC.remove("Target_Document_ID");
+        MDC.remove("Actor_User_ID");
+        MDC.remove("Is_Success");
+        MDC.remove("Severity");
+        MDC.remove("Security.Actor");
+        MDC.remove("Security.Action");
+        MDC.remove("Security.Target");
+        MDC.remove("Security.Result");
+
+        return Map.of(
+                "message", "Secret document view logged successfully",
+                "user_id", userId,
+                "document_id", documentId);
+    }
+
+    @GetMapping("/normalized-log")
+    public Map<String, Object> normalizedLog(String scenario) {
+        if (scenario == null || scenario.isEmpty()) {
+            scenario = "good";
+        }
+
+        if ("good".equals(scenario)) {
+            // Example 1: INFO
+            MDC.put("order_id", "order-789");
+            MDC.put("payment_method", "card");
+            MDC.put("amount", "29000");
+            MDC.put("result", "SUCCESS");
+            MDC.put("duration_ms", "320");
+            logger.info("주문 처리 완료: order_id=order-789, payment=success");
+
+            // Example 2: WARNING
+            MDC.put("target", "payment-api.com");
+            MDC.put("duration_ms", "4800");
+            MDC.put("threshold_ms", "3000");
+            MDC.put("result", "SLOW");
+            MDC.remove("order_id");
+            MDC.remove("payment_method");
+            MDC.remove("amount");
+            logger.warn("외부 결제 API 응답 지연: target=payment-api.com, duration_ms=4800");
+
+            // Example 3: ERROR
+            MDC.clear(); // Clear previous specific contexts
+            MDC.put("user_id", "jo***@company.com"); // Masked
+            MDC.put("error_code", "AUTH_INVALID_PASSWORD");
+            MDC.put("attempt_count", "3");
+            MDC.put("result", "FAILED");
+            logger.error("사용자 인증 실패: user=jo***@company.com, reason=invalid_password");
+
+            MDC.clear(); // Clean up
+
+            return Map.of(
+                    "scenario", "good",
+                    "message", "Log Doctor 정규화 표준을 준수한 로그가 기록되었습니다.");
+        } else {
+            // Bad scenario (violations)
+            logger.info("Processing...");
+
+            MDC.put("raw_info", "john@company.com:abc123"); // Sensitive info exposed
+            logger.error("Login failed for john@company.com password=abc123");
+            MDC.remove("raw_info");
+
+            logger.debug("DB query params: SELECT * FROM users WHERE id=?, params=('user-456',)");
+
+            return Map.of(
+                    "scenario", "bad",
+                    "message", "정규화 표준 위반 로그가 기록되었습니다.");
         }
     }
 }

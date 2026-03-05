@@ -10,28 +10,6 @@ import (
 )
 
 // ==========================================
-// 5W1H Endpoint Mapping (표준화된 비즈니스 컨텍스트)
-// ==========================================
-type Context5W1H struct {
-	What string
-	Why  string
-}
-
-var endpoint5W1H = map[string]Context5W1H{
-	"/":             {What: "guide", Why: "documentation"},
-	"/health":       {What: "health-check", Why: "periodic-monitoring"},
-	"/logs":         {What: "log-generation", Why: "testing"},
-	"/custom-event": {What: "business-event", Why: "checkout-tracking"},
-	"/dependency":   {What: "dependency-call", Why: "external-service-test"},
-	"/error":        {What: "error-test", Why: "exception-tracking"},
-}
-
-func resolve5W1H(path string) Context5W1H {
-	if ctx, ok := endpoint5W1H[path]; ok {
-		return ctx
-	}
-	return Context5W1H{What: "unknown", Why: "unknown"}
-}
 
 // ==========================================
 // 1. Configuration & Telemetry Setup
@@ -57,7 +35,7 @@ func initTelemetryClient() appinsights.TelemetryClient {
 }
 
 // ==========================================
-// 2. Middleware: 5W1H Context Injection (통합 표준)
+// 2. Middleware: Telemetry Setup
 // ==========================================
 func TelemetryMiddleware(client appinsights.TelemetryClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -69,9 +47,6 @@ func TelemetryMiddleware(client appinsights.TelemetryClient) gin.HandlerFunc {
 		// Calculate duration
 		duration := time.Since(start)
 
-		// Resolve 5W1H context
-		ctx5w1h := resolve5W1H(c.Request.URL.Path)
-
 		// Create Request Telemetry
 		request := appinsights.NewRequestTelemetry(
 			c.Request.Method,
@@ -80,17 +55,6 @@ func TelemetryMiddleware(client appinsights.TelemetryClient) gin.HandlerFunc {
 			fmt.Sprintf("%d", c.Writer.Status()),
 		)
 		request.Timestamp = start
-
-		// Who
-		request.Properties["Who"] = c.ClientIP()
-		// Where (수정: path 포함)
-		request.Properties["Where"] = "go-api:" + c.Request.URL.Path
-		// What (신규)
-		request.Properties["What"] = ctx5w1h.What
-		// Why (신규)
-		request.Properties["Why"] = ctx5w1h.Why
-		// How
-		request.Properties["How"] = c.Request.Method
 
 		// Send to Application Insights
 		client.Track(request)
@@ -147,6 +111,86 @@ func main() {
 		client.Track(dependency)
 
 		c.JSON(200, gin.H{"message": "Dependency tracked!"})
+	})
+
+	r.GET("/secret-data", func(c *gin.Context) {
+		userID := fmt.Sprintf("user-%d", time.Now().UnixNano()%9000+1000)
+		documentID := time.Now().UnixNano()%100 + 1
+
+		// Create trace for audit action
+		trace := appinsights.NewTraceTelemetry(fmt.Sprintf("Audit success: user(%s) viewed document(%d)", userID, documentID), appinsights.Information)
+		trace.Properties["custom_dimensions.Audit_Action"] = "VIEW_DOCUMENT"
+		trace.Properties["custom_dimensions.Target_Document_ID"] = fmt.Sprintf("%d", documentID)
+		trace.Properties["custom_dimensions.Actor_User_ID"] = userID
+		trace.Properties["custom_dimensions.Is_Success"] = "true"
+		trace.Properties["custom_dimensions.Severity"] = "Critical"
+
+		trace.Properties["Security.Actor"] = userID
+		trace.Properties["Security.Action"] = "File_Download"
+		trace.Properties["Security.Target"] = fmt.Sprintf("confidential_%d.pdf", documentID)
+		trace.Properties["Security.Result"] = "Success"
+
+		client.Track(trace)
+
+		c.JSON(200, gin.H{
+			"message":     "Secret document view logged successfully",
+			"user_id":     userID,
+			"document_id": documentID,
+		})
+	})
+
+	r.GET("/normalized-log", func(c *gin.Context) {
+		scenario := c.Query("scenario")
+		if scenario == "" {
+			scenario = "good"
+		}
+
+		if scenario == "good" {
+			// Example 1: INFO
+			infoLog := appinsights.NewTraceTelemetry("주문 처리 완료: order_id=order-789, payment=success", appinsights.Information)
+			infoLog.Properties["custom_dimensions.order_id"] = "order-789"
+			infoLog.Properties["custom_dimensions.payment_method"] = "card"
+			infoLog.Properties["custom_dimensions.amount"] = "29000"
+			infoLog.Properties["custom_dimensions.result"] = "SUCCESS"
+			infoLog.Properties["custom_dimensions.duration_ms"] = "320"
+			client.Track(infoLog)
+
+			// Example 2: WARNING
+			warnLog := appinsights.NewTraceTelemetry("외부 결제 API 응답 지연: target=payment-api.com, duration_ms=4800", appinsights.Warning)
+			warnLog.Properties["custom_dimensions.target"] = "payment-api.com"
+			warnLog.Properties["custom_dimensions.duration_ms"] = "4800"
+			warnLog.Properties["custom_dimensions.threshold_ms"] = "3000"
+			warnLog.Properties["custom_dimensions.result"] = "SLOW"
+			client.Track(warnLog)
+
+			// Example 3: ERROR
+			errorLog := appinsights.NewTraceTelemetry("사용자 인증 실패: user=jo***@company.com, reason=invalid_password", appinsights.Error)
+			errorLog.Properties["custom_dimensions.user_id"] = "jo***@company.com" // Masked
+			errorLog.Properties["custom_dimensions.error_code"] = "AUTH_INVALID_PASSWORD"
+			errorLog.Properties["custom_dimensions.attempt_count"] = "3"
+			errorLog.Properties["custom_dimensions.result"] = "FAILED"
+			client.Track(errorLog)
+
+			c.JSON(200, gin.H{
+				"scenario": "good",
+				"message":  "Log Doctor 정규화 표준을 준수한 로그가 기록되었습니다.",
+			})
+		} else {
+			// Bad scenario (violations)
+			client.TrackTrace("Processing...", appinsights.Information)
+
+			badErrorLog := appinsights.NewTraceTelemetry("Login failed for john@company.com password=abc123", appinsights.Error)
+			badErrorLog.Properties["custom_dimensions.raw_info"] = "john@company.com:abc123" // Sensitive info exposed
+			client.Track(badErrorLog)
+
+			badDebugLog := appinsights.NewTraceTelemetry("DB query params: SELECT * FROM users WHERE id=?, params=('user-456',)", appinsights.Verbose) // Debug level exposed
+			client.Track(badDebugLog)
+
+			c.JSON(200, gin.H{
+				"scenario": "bad",
+				"message":  "정규화 표준 위반 로그가 기록되었습니다.",
+			})
+		}
 	})
 
 	// Start server

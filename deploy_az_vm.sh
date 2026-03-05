@@ -24,7 +24,7 @@ echo "🚀 2. Log Analytics Workspace 생성 ($LAW_NAME)"
 echo "================================================================="
 az monitor log-analytics workspace create --resource-group "$RG_NAME" --workspace-name "$LAW_NAME" --location "$LOCATION" -o none
 # Workspace Resource ID 획득 (App Insights 연결용)
-LAW_ID=$(az monitor log-analytics workspace show --resource-group "$RG_NAME" --workspace-name "$LAW_NAME" --query id -o tsv)
+LAW_ID=$(az monitor log-analytics workspace show --resource-group "$RG_NAME" --workspace-name "$LAW_NAME" --query id -o tsv | tr -d '\r')
 echo "✅ 완료 (LAW_ID: $LAW_ID)"
 
 echo "================================================================="
@@ -34,7 +34,7 @@ az monitor app-insights component create --app "$AI_NAME" --location "$LOCATION"
     --resource-group "$RG_NAME" --application-type web --workspace "$LAW_ID" -o none
 
 # 연결 문자열 (Connection String) 추출
-CONN_STR=$(az monitor app-insights component show --app "$AI_NAME" --resource-group "$RG_NAME" --query connectionString -o tsv)
+CONN_STR=$(az monitor app-insights component show --app "$AI_NAME" --resource-group "$RG_NAME" --query connectionString -o tsv | tr -d '\r')
 echo "✅ 완료 (Connection String 획득 성공!)"
 
 echo "================================================================="
@@ -82,7 +82,7 @@ echo "================================================================="
 az vm open-port --port 8000 --resource-group "$RG_NAME" --name "$VM_NAME" -o none
 
 # VM의 공인 IP 가져오기
-VM_IP=$(az vm show -d -g "$RG_NAME" -n "$VM_NAME" --query publicIps -o tsv)
+VM_IP=$(az vm show -d -g "$RG_NAME" -n "$VM_NAME" --query publicIps -o tsv | tr -d '\r')
 echo "✅ 방화벽 개방 완료"
 
 echo "================================================================="

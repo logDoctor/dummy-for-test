@@ -7,8 +7,12 @@
  */
 const { useAzureMonitor } = require("@azure/monitor-opentelemetry");
 
+// Service Name for OpenTelemetry (used as 'Role Name' in Azure Monitor)
+process.env.OTEL_SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "node-api";
+
 let connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING || "InstrumentationKey=your-key-here;IngestionEndpoint=https://your-endpoint.com/;LiveEndpoint=https://your-live-endpoint.com/";
 connectionString = connectionString.replace(/^['"]|['"]$/g, '');
+
 
 // Initialize Azure Monitor OpenTelemetry Distro
 useAzureMonitor({
@@ -19,7 +23,7 @@ useAzureMonitor({
 
 /**
  * ==========================================
- * 2. Express Application & 5W1H Standard
+ * 2. Express Application Registration
  * ==========================================
  */
 const { trace, metrics } = require("@opentelemetry/api");
@@ -31,49 +35,6 @@ const port = 3000;
 const tracer = trace.getTracer("node-api-tracer");
 const meter = metrics.getMeter("node-api-meter");
 const customEventCounter = meter.createCounter("custom_event_counter");
-
-/**
- * 5W1H Endpoint Mapping (표준화된 비즈니스 컨텍스트)
- */
-const ENDPOINT_5W1H = {
-    "/":              { What: "guide",           Why: "documentation" },
-    "/health":        { What: "health-check",    Why: "periodic-monitoring" },
-    "/logs":          { What: "log-generation",  Why: "testing" },
-    "/custom-event":  { What: "business-event",  Why: "checkout-tracking" },
-    "/dependency":    { What: "dependency-call",  Why: "external-service-test" },
-    "/error":         { What: "error-test",      Why: "exception-tracking" },
-};
-
-function resolve5W1H(path) {
-    return ENDPOINT_5W1H[path] || { What: "unknown", Why: "unknown" };
-}
-
-/**
- * 3. Middleware: 5W1H Context Injection (통합 표준)
- */
-app.use((req, res, next) => {
-    const span = trace.getActiveSpan();
-    const context5w1h = resolve5W1H(req.path);
-    
-    if (span) {
-        // Who
-        span.setAttribute("enduser.id", "test-user-node");
-        span.setAttribute("Who", req.ip || "unknown");
-        // Where
-        span.setAttribute("Where", `node-api:${req.path}`);
-        // What (신규)
-        span.setAttribute("What", context5w1h.What);
-        // Why (신규)
-        span.setAttribute("Why", context5w1h.Why);
-        // How
-        span.setAttribute("How", req.method);
-        // 공통
-        span.setAttribute("Environment", "Lab");
-        span.setAttribute("AppVersion", "1.0.0");
-    }
-    
-    next();
-});
 
 /**
  * ==========================================
@@ -128,6 +89,81 @@ app.get('/dependency', (req, res) => {
             res.send("Dependency tracked manually via OpenTelemetry Span!");
         }, 120);
     });
+});
+
+app.get('/secret-data', (req, res) => {
+    tracer.startActiveSpan('Audit_Action: SecretDocumentRead', (span) => {
+        const userId = `user-${Math.floor(Math.random() * 9000) + 1000}`;
+        const documentId = Math.floor(Math.random() * 100) + 1;
+        
+        span.setAttribute("Security.Actor", userId);
+        span.setAttribute("Security.Action", "File_Download");
+        span.setAttribute("Security.Target", `confidential_${documentId}.pdf`);
+        
+        setTimeout(() => {
+            // Also add a log event to represent the audit log
+            span.addEvent(`Audit success: user(${userId}) viewed document(${documentId})`, {
+                "log.severity": "INFO",
+                "custom_dimensions.Audit_Action": "VIEW_DOCUMENT",
+                "custom_dimensions.Target_Document_ID": documentId,
+                "custom_dimensions.Actor_User_ID": userId,
+                "custom_dimensions.Is_Success": true,
+                "custom_dimensions.Severity": "Critical"
+            });
+            span.setAttribute("Security.Result", "Success");
+            span.end();
+            res.json({
+                message: "Secret document view logged successfully",
+                user_id: userId,
+                document_id: documentId
+            });
+        }, Math.floor(Math.random() * 400) + 100);
+    });
+});
+
+app.get('/normalized-log', (req, res) => {
+    const scenario = req.query.scenario || 'good';
+    const span = trace.getActiveSpan() || tracer.startSpan('Log_Normalization_Demo');
+    
+    if (scenario === 'good') {
+        span.addEvent("주문 처리 완료: order_id=order-789, payment=success", {
+            "log.severity": "INFO",
+            "custom_dimensions.order_id": "order-789",
+            "custom_dimensions.payment_method": "card",
+            "custom_dimensions.amount": 29000,
+            "custom_dimensions.result": "SUCCESS",
+            "custom_dimensions.duration_ms": 320
+        });
+        
+        span.addEvent("외부 결제 API 응답 지연: target=payment-api.com, duration_ms=4800", {
+            "log.severity": "WARN",
+            "custom_dimensions.target": "payment-api.com",
+            "custom_dimensions.duration_ms": 4800,
+            "custom_dimensions.threshold_ms": 3000,
+            "custom_dimensions.result": "SLOW"
+        });
+        
+        span.addEvent("사용자 인증 실패: user=jo***@company.com, reason=invalid_password", {
+            "log.severity": "ERROR",
+            "custom_dimensions.user_id": "jo***@company.com", // 마스킹 됨
+            "custom_dimensions.error_code": "AUTH_INVALID_PASSWORD",
+            "custom_dimensions.attempt_count": 3,
+            "custom_dimensions.result": "FAILED"
+        });
+        
+        res.json({ scenario: "good", message: "정규화 기준을 준수한 로그가 기록되었습니다." });
+    } else {
+        span.addEvent("Processing...", { "log.severity": "INFO" });
+        span.addEvent("Login failed for john@company.com password=abc123", {
+            "log.severity": "ERROR",
+            "custom_dimensions.raw_info": "john@company.com:abc123" // 민감정보 노출
+        });
+        span.addEvent("DB query params: SELECT * FROM users WHERE id=?, params=('user-456',)", {
+            "log.severity": "DEBUG" // DEBUG 로그 노출
+        });
+        
+        res.json({ scenario: "bad", message: "정규화 위반 예시 로그가 기록되었습니다." });
+    }
 });
 
 /**

@@ -6,6 +6,10 @@ using System.Diagnostics;
 // ==========================================
 // 1. Configuration & OpenTelemetry Setup
 // ==========================================
+
+// Service Name for OpenTelemetry (used as 'Role Name' in Azure Monitor)
+Environment.SetEnvironmentVariable("OTEL_SERVICE_NAME", Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? "dotnet-api");
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenTelemetry().UseAzureMonitor();
@@ -13,24 +17,6 @@ builder.Services.AddOpenTelemetry().UseAzureMonitor();
 var app = builder.Build();
 
 var activitySource = new ActivitySource("DotNetOTelSample");
-
-// ==========================================
-// 5W1H Endpoint Mapping (표준화된 비즈니스 컨텍스트)
-// ==========================================
-var endpoint5W1H = new Dictionary<string, (string What, string Why)>
-{
-    { "/", ("guide", "documentation") },
-    { "/health", ("health-check", "periodic-monitoring") },
-    { "/logs", ("log-generation", "testing") },
-    { "/custom-event", ("business-event", "checkout-tracking") },
-    { "/dependency", ("dependency-call", "external-service-test") },
-    { "/error", ("error-test", "exception-tracking") },
-};
-
-(string What, string Why) Resolve5W1H(string path)
-{
-    return endpoint5W1H.TryGetValue(path, out var result) ? result : ("unknown", "unknown");
-}
 
 // ==========================================
 // 2. Global Error Handling Middleware
@@ -49,36 +35,6 @@ app.Use(async (context, next) =>
         context.Response.StatusCode = 500;
         await context.Response.WriteAsync("An intentional error occurred and was logged to Azure Monitor.");
     }
-});
-
-// ==========================================
-// 3. Middleware: 5W1H Context Injection (통합 표준)
-// ==========================================
-app.Use(async (context, next) =>
-{
-    var activity = Activity.Current;
-
-    if (activity != null)
-    {
-        var (what, why) = Resolve5W1H(context.Request.Path);
-
-        // Who
-        activity.AddTag("enduser.id", "test-user-dotnet");
-        activity.AddTag("Who", context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
-        // Where
-        activity.AddTag("Where", $"dotnet-api:{context.Request.Path}");
-        // What (신규)
-        activity.AddTag("What", what);
-        // Why (신규)
-        activity.AddTag("Why", why);
-        // How
-        activity.AddTag("How", context.Request.Method);
-        // 공통
-        activity.AddTag("Environment", "Lab");
-        activity.AddTag("AppVersion", "1.0.0");
-    }
-
-    await next();
 });
 
 // ==========================================
@@ -129,6 +85,104 @@ app.MapGet("/dependency", async () =>
     catch (Exception ex)
     {
         return $"Dependency failed: {ex.Message}";
+    }
+});
+
+app.MapGet("/secret-data", (ILogger<Program> logger) => 
+{
+    var userId = $"user-{new Random().Next(1000, 10000)}";
+    var documentId = new Random().Next(1, 100);
+
+    using var activity = activitySource.StartActivity("Audit_Action: SecretDocumentRead");
+    
+    activity?.SetTag("Security.Actor", userId);
+    activity?.SetTag("Security.Action", "File_Download");
+    activity?.SetTag("Security.Target", $"confidential_{documentId}.pdf");
+
+    // Logging the audit event
+    using (logger.BeginScope(new Dictionary<string, object>
+    {
+        ["Audit_Action"] = "VIEW_DOCUMENT",
+        ["Target_Document_ID"] = documentId,
+        ["Actor_User_ID"] = userId,
+        ["Is_Success"] = true,
+        ["Severity"] = "Critical"
+    }))
+    {
+        logger.LogInformation("Audit success: user({UserId}) viewed document({DocumentId})", userId, documentId);
+    }
+    
+    activity?.SetTag("Security.Result", "Success");
+
+    return new 
+    {
+        message = "Secret document view logged successfully",
+        user_id = userId,
+        document_id = documentId
+    };
+});
+
+app.MapGet("/normalized-log", (ILogger<Program> logger, string scenario = "good") => 
+{
+    using var activity = activitySource.StartActivity("Log_Normalization_Demo");
+
+    if (scenario == "good")
+    {
+        // Example 1: INFO
+        using (logger.BeginScope(new Dictionary<string, object>
+        {
+            ["order_id"] = "order-789",
+            ["payment_method"] = "card",
+            ["amount"] = 29000,
+            ["result"] = "SUCCESS",
+            ["duration_ms"] = 320
+        }))
+        {
+            logger.LogInformation("주문 처리 완료: order_id=order-789, payment=success");
+        }
+
+        // Example 2: WARNING
+        using (logger.BeginScope(new Dictionary<string, object>
+        {
+            ["target"] = "payment-api.com",
+            ["duration_ms"] = 4800,
+            ["threshold_ms"] = 3000,
+            ["result"] = "SLOW"
+        }))
+        {
+            logger.LogWarning("외부 결제 API 응답 지연: target=payment-api.com, duration_ms=4800");
+        }
+
+        // Example 3: ERROR
+        using (logger.BeginScope(new Dictionary<string, object>
+        {
+            ["user_id"] = "jo***@company.com", // Masked
+            ["error_code"] = "AUTH_INVALID_PASSWORD",
+            ["attempt_count"] = 3,
+            ["result"] = "FAILED"
+        }))
+        {
+            logger.LogError("사용자 인증 실패: user=jo***@company.com, reason=invalid_password");
+        }
+
+        return new { scenario = "good", message = "Log Doctor 정규화 표준을 준수한 로그가 기록되었습니다." };
+    }
+    else
+    {
+        // Bad scenario
+        logger.LogInformation("Processing...");
+
+        using (logger.BeginScope(new Dictionary<string, object>
+        {
+            ["raw_info"] = "john@company.com:abc123" // Sensitive info exposed
+        }))
+        {
+            logger.LogError("Login failed for john@company.com password=abc123");
+        }
+
+        logger.LogDebug("DB query params: SELECT * FROM users WHERE id=@id, params=('user-456',)");
+
+        return new { scenario = "bad", message = "정규화 표준 위반 로그가 기록되었습니다." };
     }
 });
 
